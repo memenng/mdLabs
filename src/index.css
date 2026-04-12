@@ -1,18 +1,7 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 @import "katex/dist/katex.min.css";
-
-/* Dark mode: github-dark, Light mode: github */
-@import "highlight.js/styles/github.min.css" layer(hljs-light);
-@import "highlight.js/styles/github-dark.min.css" layer(hljs-dark);
-
-@layer hljs-light {
-  :root:not(.dark) pre code.hljs { display: block; overflow-x: auto; padding: 1em; }
-}
-
-@layer hljs-dark {
-  .dark pre code.hljs { display: block; overflow-x: auto; padding: 1em; }
-}
+@import "highlight.js/styles/github-dark.min.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -20,6 +9,61 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
+}
+
+/* Light mode: force dark readable text in code blocks */
+:root:not(.dark) pre,
+:root:not(.dark) pre code,
+:root:not(.dark) code.hljs {
+  color: #1f2328 !important;
+  background: #f6f8fa !important;
+}
+
+:root:not(.dark) .hljs-comment,
+:root:not(.dark) .hljs-quote {
+  color: #6a737d !important;
+}
+
+:root:not(.dark) .hljs-keyword,
+:root:not(.dark) .hljs-selector-tag,
+:root:not(.dark) .hljs-type {
+  color: #cf222e !important;
+}
+
+:root:not(.dark) .hljs-string,
+:root:not(.dark) .hljs-addition {
+  color: #0a3069 !important;
+}
+
+:root:not(.dark) .hljs-number,
+:root:not(.dark) .hljs-literal {
+  color: #0550ae !important;
+}
+
+:root:not(.dark) .hljs-title,
+:root:not(.dark) .hljs-section,
+:root:not(.dark) .hljs-name {
+  color: #8250df !important;
+}
+
+:root:not(.dark) .hljs-built_in,
+:root:not(.dark) .hljs-symbol {
+  color: #953800 !important;
+}
+
+:root:not(.dark) .hljs-attr,
+:root:not(.dark) .hljs-attribute {
+  color: #0550ae !important;
+}
+
+:root:not(.dark) .hljs-variable,
+:root:not(.dark) .hljs-template-variable {
+  color: #953800 !important;
+}
+
+:root:not(.dark) .hljs-deletion {
+  color: #82071e !important;
+  background: #ffebe9 !important;
 }
 
 /* Smooth theme transitions */
