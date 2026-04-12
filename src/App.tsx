@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { readTextFile, readDir } from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Sidebar } from "./components/Sidebar";
@@ -8,28 +8,29 @@ import { MarkdownViewer } from "./components/MarkdownViewer";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { AboutDialog } from "./components/AboutDialog";
 import { useTheme } from "./hooks/useTheme";
-import { FileEntry } from "./types/files";
 import { PanelLeftClose, PanelLeft, Info, FileText } from "lucide-react";
 
-async function buildFileTree(dirPath: string): Promise<FileEntry[]> {
-  const entries = await readDir(dirPath);
-  const result: FileEntry[] = [];
+interface RustFileEntry {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  children: RustFileEntry[] | null;
+}
 
-  for (const e of entries) {
-    const fullPath = `${dirPath}/${e.name}`;
-    if (e.isDirectory) {
-      const children = await buildFileTree(fullPath);
-      result.push({ name: e.name, path: fullPath, isDir: true, children });
-    } else {
-      result.push({ name: e.name, path: fullPath, isDir: false });
-    }
-  }
+interface FileEntry {
+  name: string;
+  path: string;
+  isDir: boolean;
+  children?: FileEntry[];
+}
 
-  return result.sort((a, b) => {
-    if (a.isDir && !b.isDir) return -1;
-    if (!a.isDir && b.isDir) return 1;
-    return a.name.localeCompare(b.name);
-  });
+function mapEntries(entries: RustFileEntry[]): FileEntry[] {
+  return entries.map((e) => ({
+    name: e.name,
+    path: e.path,
+    isDir: e.is_dir,
+    children: e.children ? mapEntries(e.children) : undefined,
+  }));
 }
 
 export default function App() {
@@ -42,7 +43,7 @@ export default function App() {
 
   const openFile = useCallback(async (path: string) => {
     try {
-      const text = await readTextFile(path);
+      const text = await invoke<string>("read_md_file", { path });
       setContent(text);
       setSelectedPath(path);
     } catch (e) {
@@ -52,8 +53,8 @@ export default function App() {
 
   const loadFolder = useCallback(async (folderPath: string) => {
     try {
-      const tree = await buildFileTree(folderPath);
-      setFileEntries(tree);
+      const entries = await invoke<RustFileEntry[]>("read_directory", { path: folderPath });
+      setFileEntries(mapEntries(entries));
     } catch (e) {
       console.error("Failed to read directory:", e);
     }
