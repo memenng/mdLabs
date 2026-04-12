@@ -1,6 +1,6 @@
 # mdLabs
 
-Lightweight read-only Markdown reader for macOS.
+Lightweight read-only Markdown reader for macOS, Windows, and Linux.
 
 ## Tech Stack
 
@@ -27,7 +27,24 @@ Lightweight read-only Markdown reader for macOS.
 - `create-tauri-app` and `tauri init` require interactive terminal — scaffold manually in Claude Code
 - `tauri.conf.json`: no `app.title` field in Tauri v2 — use `productName` and window `title` only
 - Tauri v2 `readDir` has no `recursive` option — use custom Rust command instead
-- macOS icon generation: `qlmanage -t -s 1024` for SVG→PNG, `sips` for resize, `iconutil -c icns` for .icns
+- Icon generation: `qlmanage -t -s 1024` for SVG→PNG, `sips` for resize, `iconutil -c icns` for .icns, `png-to-ico` for .ico
+- Cannot cross-compile Tauri — must build on each target OS (use GitHub Actions CI)
+
+## CI/CD
+
+- GitHub Actions workflow at `.github/workflows/build.yml`
+- Triggered by version tags (`git tag v1.x.x && git push origin v1.x.x`) or manual dispatch
+- Builds 4 targets: macOS arm64, macOS x64, Windows x64, Linux x64
+- Artifacts published to GitHub Releases automatically
+- Repo: `github.com/memenng/mdLabs` (private)
+
+## Icons
+
+- `src-tauri/icons/mdlabs-icon.svg` — source SVG (flask silhouette, orange on dark)
+- `src-tauri/icons/mdlabs.icns` — macOS
+- `src-tauri/icons/icon.ico` — Windows
+- `src-tauri/icons/icon.png` — Linux/fallback (1024x1024)
+- Generate from SVG: `qlmanage -t -s 1024` → `sips` resize → `iconutil -c icns`
 
 ## Code Style
 
