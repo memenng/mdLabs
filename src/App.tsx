@@ -10,29 +10,25 @@ import { useTheme } from "./hooks/useTheme";
 import { FileEntry } from "./types/files";
 import { PanelLeftClose, PanelLeft, Info, FileText } from "lucide-react";
 
-interface DirEntry {
-  name: string;
-  isDirectory: boolean;
-  isFile: boolean;
-  isSymlink: boolean;
-  children?: DirEntry[];
-}
+async function buildFileTree(dirPath: string): Promise<FileEntry[]> {
+  const entries = await readDir(dirPath);
+  const result: FileEntry[] = [];
 
-function mapDirEntries(entries: DirEntry[], parentPath: string): FileEntry[] {
-  return entries
-    .map((e) => ({
-      name: e.name,
-      path: `${parentPath}/${e.name}`,
-      isDir: e.isDirectory,
-      children: e.isDirectory && e.children
-        ? mapDirEntries(e.children, `${parentPath}/${e.name}`)
-        : undefined,
-    }))
-    .sort((a, b) => {
-      if (a.isDir && !b.isDir) return -1;
-      if (!a.isDir && b.isDir) return 1;
-      return a.name.localeCompare(b.name);
-    });
+  for (const e of entries) {
+    const fullPath = `${dirPath}/${e.name}`;
+    if (e.isDirectory) {
+      const children = await buildFileTree(fullPath);
+      result.push({ name: e.name, path: fullPath, isDir: true, children });
+    } else {
+      result.push({ name: e.name, path: fullPath, isDir: false });
+    }
+  }
+
+  return result.sort((a, b) => {
+    if (a.isDir && !b.isDir) return -1;
+    if (!a.isDir && b.isDir) return 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 export default function App() {
@@ -55,9 +51,8 @@ export default function App() {
 
   const loadFolder = useCallback(async (folderPath: string) => {
     try {
-      const entries = await readDir(folderPath, { recursive: true });
-      const mapped = mapDirEntries(entries as unknown as DirEntry[], folderPath);
-      setFileEntries(mapped);
+      const tree = await buildFileTree(folderPath);
+      setFileEntries(tree);
     } catch (e) {
       console.error("Failed to read directory:", e);
     }
