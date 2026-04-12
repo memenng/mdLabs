@@ -27,7 +27,8 @@ Lightweight read-only Markdown reader for macOS, Windows, and Linux.
 - `create-tauri-app` and `tauri init` require interactive terminal — scaffold manually in Claude Code
 - `tauri.conf.json`: no `app.title` field in Tauri v2 — use `productName` and window `title` only
 - Tauri v2 `readDir` has no `recursive` option — use custom Rust command instead
-- Icon generation: `qlmanage -t -s 1024` for SVG→PNG, `sips` for resize, `iconutil -c icns` for .icns, `png-to-ico` for .ico
+- Icon generation: `qlmanage -t -s 1024` for SVG→PNG, `sips` for resize, `iconutil -c icns` for .icns
+- Windows `.ico`: use `npx png-to-ico src-tauri/icons/32x32.png > src-tauri/icons/icon.ico` — must redirect stdout to file, not pipe (npm warnings corrupt the binary)
 - Cannot cross-compile Tauri — must build on each target OS (use GitHub Actions CI)
 
 ## CI/CD
@@ -36,6 +37,7 @@ Lightweight read-only Markdown reader for macOS, Windows, and Linux.
 - Triggered by version tags (`git tag v1.x.x && git push origin v1.x.x`) or manual dispatch
 - Builds 4 targets: macOS arm64, macOS x64, Windows x64, Linux x64
 - Artifacts published to GitHub Releases automatically
+- Workflow requires `permissions: contents: write` for creating releases
 - Repo: `github.com/memenng/mdLabs` (private)
 
 ## Icons
