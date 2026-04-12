@@ -99,35 +99,35 @@ export default function App() {
   const fileName = selectedPath ? selectedPath.split("/").pop() : null;
 
   return (
-    <div className={`h-screen flex flex-col ${theme === "dark" ? "bg-neutral-950 text-neutral-200" : "bg-white text-neutral-800"}`}>
+    <div className="h-screen flex flex-col bg-white dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 h-12 border-b border-neutral-800 shrink-0" data-tauri-drag-region>
+      <header className="flex items-center justify-between px-4 h-12 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 shrink-0" data-tauri-drag-region>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-md hover:bg-neutral-800 transition-colors"
+            className="p-2 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
             title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
           >
             {sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
           </button>
           <button
             onClick={handleOpenFile}
-            className="p-2 rounded-md hover:bg-neutral-800 transition-colors"
+            className="p-2 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
             title="Open file"
           >
             <FileText size={16} />
           </button>
-          <span className="text-sm font-semibold text-orange-400">mdLabs</span>
+          <span className="text-sm font-semibold text-orange-500 dark:text-orange-400">mdLabs</span>
         </div>
 
         <div className="flex items-center gap-1">
           {fileName && (
-            <span className="text-xs text-neutral-500 mr-2">{fileName}</span>
+            <span className="text-xs text-neutral-400 dark:text-neutral-500 mr-2">{fileName}</span>
           )}
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <button
             onClick={() => setAboutOpen(true)}
-            className="p-2 rounded-md hover:bg-neutral-800 transition-colors"
+            className="p-2 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
             title="About mdLabs"
           >
             <Info size={16} />

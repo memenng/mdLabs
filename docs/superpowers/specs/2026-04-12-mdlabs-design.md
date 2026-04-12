@@ -101,6 +101,42 @@ struct FileEntry {
 - No plugin system
 - No wikilinks or backlinks (read standard markdown only)
 
+## About Dialog
+
+The app includes an About window accessible from the menu bar (mdLabs > About mdLabs). It displays:
+
+- **App icon** (mdLabs logo)
+- **App name:** mdLabs
+- **Tagline:** "A lightweight Markdown reader for macOS"
+- **Version:** 1.0.0
+- **Year:** 2026
+- **Author:** mmnLabs
+
+### Key info shown in About:
+
+> **Read-only viewer** — mdLabs does not edit, modify, or save files. Your documents are never changed.
+>
+> **Fully offline** — No internet connection required. No data is sent anywhere.
+>
+> **No database** — Files are read directly from your filesystem. Nothing is stored or indexed.
+>
+> **Open any .md file** — Drag & drop, open from file picker, or browse folders.
+
+### Supported rendering:
+
+- Markdown with GFM (tables, strikethrough, task lists)
+- Mermaid diagrams
+- Syntax-highlighted code blocks
+- LaTeX / KaTeX math equations
+- Embedded images
+
+## App Icon
+
+- **Concept:** Document + Lab Flask (markdown + Labs)
+- **Colors:** Dark background (#1a1a2e), BLUM-inspired orange accent (#FF8C00 → #FFB347)
+- **Style:** macOS rounded square, minimal, geometric
+- **File:** `src-tauri/icons/mdlabs-icon.svg`
+
 ## Target
 
 - **Platform:** macOS (Apple Silicon + Intel)

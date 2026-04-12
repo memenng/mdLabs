@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { Check, Copy } from "lucide-react";
 
 interface CodeBlockProps {
@@ -18,13 +19,14 @@ export function CodeBlock({ className, children }: CodeBlockProps) {
 
   return (
     <div className="relative group">
-      <button
+      <motion.button
+        whileTap={{ scale: 0.9 }}
         onClick={handleCopy}
-        className="absolute top-2 right-2 p-1.5 rounded bg-neutral-700/80 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-2 right-2 p-1.5 rounded bg-neutral-200/80 dark:bg-neutral-700/80 opacity-0 group-hover:opacity-100 transition-opacity"
         title="Copy code"
       >
-        {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} className="text-neutral-300" />}
-      </button>
+        {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} className="text-neutral-500 dark:text-neutral-300" />}
+      </motion.button>
       <pre className={className}>
         <code className={className}>{children}</code>
       </pre>

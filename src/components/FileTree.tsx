@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ChevronRight, ChevronDown, File, Folder } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronRight, File, Folder } from "lucide-react";
 import { FileEntry } from "../types/files";
 
 interface FileTreeProps {
@@ -40,32 +41,42 @@ function TreeNode({
     return (
       <div>
         <button
-          className="flex items-center gap-1 w-full px-2 py-1 text-sm hover:bg-white/10 rounded text-left"
+          className="flex items-center gap-1 w-full px-2 py-1 text-sm hover:bg-neutral-200 dark:hover:bg-white/10 rounded text-left text-neutral-700 dark:text-neutral-300"
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           onClick={() => setExpanded(!expanded)}
         >
-          {expanded ? (
-            <ChevronDown size={14} className="shrink-0 text-neutral-400" />
-          ) : (
-            <ChevronRight size={14} className="shrink-0 text-neutral-400" />
-          )}
+          <motion.span
+            animate={{ rotate: expanded ? 90 : 0 }}
+            transition={{ duration: 0.15 }}
+            className="shrink-0"
+          >
+            <ChevronRight size={14} className="text-neutral-400" />
+          </motion.span>
           <Folder size={14} className="shrink-0 text-orange-400" />
           <span className="truncate">{entry.name}</span>
         </button>
-        {expanded && entry.children && (
-          <div>
-            {entry.children.map((child) => (
-              <TreeNode
-                key={child.path}
-                entry={child}
-                depth={depth + 1}
-                onFileSelect={onFileSelect}
-                selectedPath={selectedPath}
-                filter={filter}
-              />
-            ))}
-          </div>
-        )}
+        <AnimatePresence>
+          {expanded && entry.children && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ overflow: "hidden" }}
+            >
+              {entry.children.map((child) => (
+                <TreeNode
+                  key={child.path}
+                  entry={child}
+                  depth={depth + 1}
+                  onFileSelect={onFileSelect}
+                  selectedPath={selectedPath}
+                  filter={filter}
+                />
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -75,16 +86,19 @@ function TreeNode({
   const isSelected = entry.path === selectedPath;
 
   return (
-    <button
-      className={`flex items-center gap-1 w-full px-2 py-1 text-sm rounded text-left ${
-        isSelected ? "bg-orange-500/20 text-orange-300" : "hover:bg-white/10"
+    <motion.button
+      whileTap={{ scale: 0.98 }}
+      className={`flex items-center gap-1 w-full px-2 py-1 text-sm rounded text-left transition-colors ${
+        isSelected
+          ? "bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-300"
+          : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-white/10"
       }`}
       style={{ paddingLeft: `${depth * 16 + 8}px` }}
       onClick={() => onFileSelect(entry.path)}
     >
       <File size={14} className="shrink-0 text-neutral-400" />
       <span className="truncate">{entry.name}</span>
-    </button>
+    </motion.button>
   );
 }
 
