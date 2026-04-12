@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Search, FolderOpen } from "lucide-react";
 import { FileEntry } from "../types/files";
 import { FileTree } from "./FileTree";

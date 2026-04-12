@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { readTextFile, readDir } from "@tauri-apps/plugin-fs";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -137,16 +138,26 @@ export default function App() {
 
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        {sidebarOpen && (
-          <div className="w-64 shrink-0">
-            <Sidebar
-              entries={fileEntries}
-              onFileSelect={openFile}
-              onOpenFolder={handleOpenFolder}
-              selectedPath={selectedPath}
-            />
-          </div>
-        )}
+        <AnimatePresence>
+          {sidebarOpen && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 256, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2, type: "spring", stiffness: 400, damping: 30 }}
+              className="shrink-0 overflow-hidden"
+            >
+              <div className="w-64 h-full">
+                <Sidebar
+                  entries={fileEntries}
+                  onFileSelect={openFile}
+                  onOpenFolder={handleOpenFolder}
+                  selectedPath={selectedPath}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <main className="flex-1 overflow-y-auto">
           <MarkdownViewer content={content} filePath={selectedPath} />
