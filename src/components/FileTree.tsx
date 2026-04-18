@@ -33,7 +33,7 @@ function TreeNode({
   selectedPath: string | null;
   filter: string;
 }) {
-  const [expanded, setExpanded] = useState(depth < 1);
+  const [expanded, setExpanded] = useState(false);
 
   if (!matchesFilter(entry, filter)) return null;
 

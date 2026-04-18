@@ -38,6 +38,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
+  const [rootFolder, setRootFolder] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [content, setContent] = useState("");
 
@@ -54,11 +55,26 @@ export default function App() {
   const loadFolder = useCallback(async (folderPath: string) => {
     try {
       const entries = await invoke<RustFileEntry[]>("read_directory", { path: folderPath });
-      setFileEntries(mapEntries(entries));
+      const children = mapEntries(entries);
+      const name = folderPath.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
+      setFileEntries([{ name, path: folderPath, isDir: true, children }]);
+      setRootFolder(folderPath);
     } catch (e) {
       console.error("Failed to read directory:", e);
     }
   }, []);
+
+  const refreshFolder = useCallback(async () => {
+    if (!rootFolder) return;
+    try {
+      const entries = await invoke<RustFileEntry[]>("read_directory", { path: rootFolder });
+      const children = mapEntries(entries);
+      const name = rootFolder.split(/[\\/]/).filter(Boolean).pop() ?? rootFolder;
+      setFileEntries([{ name, path: rootFolder, isDir: true, children }]);
+    } catch (e) {
+      console.error("Failed to refresh directory:", e);
+    }
+  }, [rootFolder]);
 
   const handleOpenFolder = useCallback(async () => {
     const selected = await open({ directory: true, multiple: false });
@@ -76,6 +92,15 @@ export default function App() {
       await openFile(selected as string);
     }
   }, [openFile]);
+
+  // Auto-refresh folder when window regains focus
+  useEffect(() => {
+    const onFocus = () => {
+      refreshFolder();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [refreshFolder]);
 
   // Handle file drop
   useEffect(() => {
@@ -153,6 +178,8 @@ export default function App() {
                   entries={fileEntries}
                   onFileSelect={openFile}
                   onOpenFolder={handleOpenFolder}
+                  onRefresh={refreshFolder}
+                  canRefresh={!!rootFolder}
                   selectedPath={selectedPath}
                 />
               </div>

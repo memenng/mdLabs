@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Search, FolderOpen } from "lucide-react";
+import { Search, FolderOpen, RefreshCw } from "lucide-react";
 import { FileEntry } from "../types/files";
 import { FileTree } from "./FileTree";
 
@@ -8,10 +8,12 @@ interface SidebarProps {
   entries: FileEntry[];
   onFileSelect: (path: string) => void;
   onOpenFolder: () => void;
+  onRefresh: () => void;
+  canRefresh: boolean;
   selectedPath: string | null;
 }
 
-export function Sidebar({ entries, onFileSelect, onOpenFolder, selectedPath }: SidebarProps) {
+export function Sidebar({ entries, onFileSelect, onOpenFolder, onRefresh, canRefresh, selectedPath }: SidebarProps) {
   const [filter, setFilter] = useState("");
 
   return (
@@ -53,17 +55,28 @@ export function Sidebar({ entries, onFileSelect, onOpenFolder, selectedPath }: S
         )}
       </div>
 
-      {/* Open folder button */}
-      <div className="p-2 border-t border-neutral-200 dark:border-neutral-800">
+      {/* Actions */}
+      <div className="p-2 border-t border-neutral-200 dark:border-neutral-800 flex gap-2">
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={onOpenFolder}
-          className="flex items-center justify-center gap-2 w-full px-3 py-2 text-sm bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 rounded-md transition-colors"
+          className="flex items-center justify-center gap-2 flex-1 px-3 py-2 text-sm bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 rounded-md transition-colors"
         >
           <FolderOpen size={14} />
           Open Folder
         </motion.button>
+        {canRefresh && (
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98, rotate: 180 }}
+            onClick={onRefresh}
+            title="Refresh folder"
+            className="flex items-center justify-center px-3 py-2 text-sm bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 rounded-md transition-colors text-neutral-600 dark:text-neutral-300"
+          >
+            <RefreshCw size={14} />
+          </motion.button>
+        )}
       </div>
     </motion.div>
   );
