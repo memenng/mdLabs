@@ -40,7 +40,7 @@ export function FindBar({
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: -40, opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="absolute top-3 right-6 z-40 flex items-center gap-1 px-2 py-1.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-lg"
+          className="fixed top-16 right-6 z-40 flex items-center gap-1 px-2 py-1.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-lg"
         >
           <input
             ref={inputRef}
