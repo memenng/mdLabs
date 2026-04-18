@@ -21,6 +21,20 @@ Lightweight read-only Markdown reader for macOS, Windows, and Linux.
 - `npm run dev` — Start Vite dev server
 - `npx tauri dev` — Dev mode with hot reload (requires Rust toolchain)
 - `npx tauri build` — Production build → `src-tauri/target/release/bundle/macos/mdLabs.app`
+- **Signed build (for updater artifacts):**
+  ```
+  TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/mdlabs.key) TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" npx tauri build
+  ```
+  Produces `mdLabs.app.tar.gz` + `.tar.gz.sig` for updater distribution.
+
+## Versioning
+
+Bump version in **3 places together** (they must match):
+- `src-tauri/tauri.conf.json` → `version`
+- `package.json` → `version`
+- `src-tauri/Cargo.toml` → `version`
+
+Do NOT hardcode version strings in UI — read via `getVersion()` from `@tauri-apps/api/app`.
 
 ## Gotchas
 
@@ -30,6 +44,8 @@ Lightweight read-only Markdown reader for macOS, Windows, and Linux.
 - Icon generation: `qlmanage -t -s 1024` for SVG→PNG, `sips` for resize, `iconutil -c icns` for .icns
 - Windows `.ico`: use `npx png-to-ico src-tauri/icons/32x32.png > src-tauri/icons/icon.ico` — must redirect stdout to file, not pipe (npm warnings corrupt the binary)
 - Cannot cross-compile Tauri — must build on each target OS (use GitHub Actions CI)
+- `bundle.targets` does NOT accept `"updater"` as an entry (unknown variant error). Use `"targets": "all"` + `createUpdaterArtifacts: true` to produce updater bundles.
+- Updater ships **two artifacts per platform**: `*.tar.gz` (macOS) or `*.msi.zip` (Windows) plus a `.sig` sidecar — both must be uploaded to the update server.
 
 ## Auto-updater
 
@@ -38,6 +54,8 @@ Lightweight read-only Markdown reader for macOS, Windows, and Linux.
 - Endpoint (placeholder): `https://updates.mdlabs.example.com/{{target}}/{{arch}}/{{current_version}}` — swap with real VPS URL when ready
 - UI: Info icon shows orange dot badge when update available → click opens `UpdateDialog` with changelog + progress bar → auto-relaunch after install
 - Hook: `src/hooks/useUpdater.ts` (checks on startup)
+- Permissions required in `capabilities/default.json`: `updater:default`, `process:default`, `process:allow-restart`
+- If endpoint is unreachable (e.g. placeholder URL), updater fails silently — `status.kind === "error"`, no badge shown, app keeps working
 - CI env vars needed as GitHub Secrets: `TAURI_SIGNING_PRIVATE_KEY` (content of `~/.tauri/mdlabs.key`), optionally `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
 - VPS serves `latest.json` manifest — tauri-action generates it automatically on release
 
@@ -57,6 +75,12 @@ Lightweight read-only Markdown reader for macOS, Windows, and Linux.
 - `src-tauri/icons/icon.ico` — Windows
 - `src-tauri/icons/icon.png` — Linux/fallback (1024x1024)
 - Generate from SVG: `qlmanage -t -s 1024` → `sips` resize → `iconutil -c icns`
+
+## File Tree Behavior
+
+- Opened folder is wrapped as a single root parent node (collapsed by default) — not flattened into multiple roots
+- All folders default to collapsed; filter-matching forces display but doesn't auto-expand
+- Refresh: manual button in Sidebar + auto-refresh on `window` focus event (picks up new files added externally)
 
 ## Code Style
 
