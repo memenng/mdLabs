@@ -76,6 +76,29 @@ Do NOT hardcode version strings in UI — read via `getVersion()` from `@tauri-a
 - `src-tauri/icons/icon.png` — Linux/fallback (1024x1024)
 - Generate from SVG: `qlmanage -t -s 1024` → `sips` resize → `iconutil -c icns`
 
+## Settings & State
+
+- `tauri-plugin-store` persists user settings to `settings.json` via `src/hooks/useAppSettings.ts`
+- Persisted keys: `sidebarOpen`, `lastFolder`, `recentFolders` (max 8), `zoom` (0.7–2)
+- Last opened folder auto-restores on app start
+
+## Search
+
+- **In-file (Cmd+F):** `src/hooks/useInFileSearch.ts` walks text nodes in the viewer and uses the CSS Custom Highlight API (`CSS.highlights`) for match styling — no DOM mutation. FindBar UI in `src/components/FindBar.tsx`.
+- **Global search:** Rust command `search_directory(path, query)` in `src-tauri/src/lib.rs` walks `.md` files under a folder (skips dotfiles), caps at 20 matches/file and 200 files. UI in `src/components/GlobalSearch.tsx` with a tabbed Sidebar.
+
+## TOC / Outline
+
+- Headings extracted in TS via regex (code fences skipped) in `TocPanel.tsx`
+- `rehype-slug` assigns matching heading IDs during rendering
+- Active heading detection via scroll listener on the viewer scroll container
+
+## Keyboard Shortcuts
+
+Hotkeys via `src/hooks/useHotkeys.ts` (`Cmd`/`Ctrl` = "mod"):
+- `mod+f` find-in-file · `mod+o` open folder · `mod+b` toggle sidebar
+- `mod+=` / `mod+-` zoom · `mod+0` reset zoom · `esc` close find bar
+
 ## File Tree Behavior
 
 - Opened folder is wrapped as a single root parent node (collapsed by default) — not flattened into multiple roots

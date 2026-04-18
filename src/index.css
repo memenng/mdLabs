@@ -70,3 +70,13 @@ body {
 * {
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
+
+/* In-file search highlights (CSS Custom Highlight API) */
+::highlight(mdlabs-find) {
+  background-color: rgba(251, 146, 60, 0.35);
+  color: inherit;
+}
+::highlight(mdlabs-find-active) {
+  background-color: rgba(249, 115, 22, 0.85);
+  color: white;
+}

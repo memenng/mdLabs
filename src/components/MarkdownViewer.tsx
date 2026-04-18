@@ -1,18 +1,24 @@
+import { forwardRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
+import rehypeSlug from "rehype-slug";
 import { MermaidBlock } from "./MermaidBlock";
 import { CodeBlock } from "./CodeBlock";
 
 interface MarkdownViewerProps {
   content: string;
   filePath: string | null;
+  zoom?: number;
 }
 
-export function MarkdownViewer({ content, filePath }: MarkdownViewerProps) {
+export const MarkdownViewer = forwardRef<HTMLDivElement, MarkdownViewerProps>(function MarkdownViewer(
+  { content, filePath, zoom = 1 },
+  ref,
+) {
   if (!content && !filePath) {
     return (
       <motion.div
@@ -45,10 +51,12 @@ export function MarkdownViewer({ content, filePath }: MarkdownViewerProps) {
     <AnimatePresence mode="wait">
       <motion.div
         key={filePath}
+        ref={ref}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
         transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30 }}
+        style={{ fontSize: `${zoom}em` }}
         className="max-w-4xl mx-auto px-8 py-6"
       >
         <article className="prose prose-neutral dark:prose-invert prose-orange max-w-none
@@ -64,7 +72,7 @@ export function MarkdownViewer({ content, filePath }: MarkdownViewerProps) {
         ">
           <Markdown
             remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[rehypeKatex, rehypeHighlight]}
+            rehypePlugins={[rehypeSlug, rehypeKatex, rehypeHighlight]}
             components={{
               code({ className, children, ...props }) {
                 const match = /language-(\w+)/.exec(className || "");
@@ -100,4 +108,4 @@ export function MarkdownViewer({ content, filePath }: MarkdownViewerProps) {
       </motion.div>
     </AnimatePresence>
   );
-}
+});

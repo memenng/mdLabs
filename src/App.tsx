@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -8,9 +8,16 @@ import { MarkdownViewer } from "./components/MarkdownViewer";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { AboutDialog } from "./components/AboutDialog";
 import { UpdateDialog } from "./components/UpdateDialog";
+import { FindBar } from "./components/FindBar";
+import { TocPanel, extractHeadings } from "./components/TocPanel";
+import { Breadcrumb } from "./components/Breadcrumb";
+import { ReadingStatus } from "./components/ReadingStatus";
 import { useTheme } from "./hooks/useTheme";
 import { useUpdater } from "./hooks/useUpdater";
-import { PanelLeftClose, PanelLeft, Info, FileText } from "lucide-react";
+import { useAppSettings } from "./hooks/useAppSettings";
+import { useHotkeys } from "./hooks/useHotkeys";
+import { useInFileSearch } from "./hooks/useInFileSearch";
+import { PanelLeftClose, PanelLeft, Info, FileText, List } from "lucide-react";
 
 interface RustFileEntry {
   name: string;
@@ -38,9 +45,21 @@ function mapEntries(entries: RustFileEntry[]): FileEntry[] {
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { status: updateStatus, downloadAndInstall } = useUpdater();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { settings, loaded: settingsLoaded, update: updateSetting, pushRecentFolder } =
+    useAppSettings();
+  const sidebarOpen = settings.sidebarOpen;
+  const setSidebarOpen = useCallback(
+    (v: boolean) => updateSetting("sidebarOpen", v),
+    [updateSetting],
+  );
+  const zoom = settings.zoom;
+  const setZoom = useCallback(
+    (v: number) => updateSetting("zoom", Math.max(0.7, Math.min(2, v))),
+    [updateSetting],
+  );
   const [aboutOpen, setAboutOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
+  const [tocOpen, setTocOpen] = useState(false);
   const hasUpdate =
     updateStatus.kind === "available" ||
     updateStatus.kind === "downloading" ||
@@ -49,6 +68,8 @@ export default function App() {
   const [rootFolder, setRootFolder] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [content, setContent] = useState("");
+  const viewerRef = useRef<HTMLDivElement>(null);
+  const find = useInFileSearch(viewerRef, selectedPath);
 
   const openFile = useCallback(async (path: string) => {
     try {
@@ -60,17 +81,21 @@ export default function App() {
     }
   }, []);
 
-  const loadFolder = useCallback(async (folderPath: string) => {
-    try {
-      const entries = await invoke<RustFileEntry[]>("read_directory", { path: folderPath });
-      const children = mapEntries(entries);
-      const name = folderPath.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
-      setFileEntries([{ name, path: folderPath, isDir: true, children }]);
-      setRootFolder(folderPath);
-    } catch (e) {
-      console.error("Failed to read directory:", e);
-    }
-  }, []);
+  const loadFolder = useCallback(
+    async (folderPath: string) => {
+      try {
+        const entries = await invoke<RustFileEntry[]>("read_directory", { path: folderPath });
+        const children = mapEntries(entries);
+        const name = folderPath.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
+        setFileEntries([{ name, path: folderPath, isDir: true, children }]);
+        setRootFolder(folderPath);
+        pushRecentFolder(folderPath);
+      } catch (e) {
+        console.error("Failed to read directory:", e);
+      }
+    },
+    [pushRecentFolder],
+  );
 
   const refreshFolder = useCallback(async () => {
     if (!rootFolder) return;
@@ -101,6 +126,14 @@ export default function App() {
     }
   }, [openFile]);
 
+  // Restore last folder once settings are loaded
+  useEffect(() => {
+    if (settingsLoaded && settings.lastFolder && !rootFolder) {
+      loadFolder(settings.lastFolder);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsLoaded]);
+
   // Auto-refresh folder when window regains focus
   useEffect(() => {
     const onFocus = () => {
@@ -109,6 +142,25 @@ export default function App() {
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [refreshFolder]);
+
+  const hotkeyMap = useMemo(
+    () => ({
+      "mod+f": () => {
+        if (selectedPath) find.setOpen(true);
+      },
+      "mod+o": () => handleOpenFolder(),
+      "mod+b": () => setSidebarOpen(!sidebarOpen),
+      "mod+=": () => setZoom(zoom + 0.1),
+      "mod++": () => setZoom(zoom + 0.1),
+      "mod+-": () => setZoom(zoom - 0.1),
+      "mod+0": () => setZoom(1),
+      escape: () => {
+        if (find.open) find.close();
+      },
+    }),
+    [selectedPath, find, handleOpenFolder, sidebarOpen, setSidebarOpen, zoom, setZoom],
+  );
+  useHotkeys(hotkeyMap, { allowInInput: ["escape", "mod+f"] });
 
   // Handle file drop
   useEffect(() => {
@@ -131,7 +183,8 @@ export default function App() {
     };
   }, [openFile, loadFolder]);
 
-  const fileName = selectedPath ? selectedPath.split("/").pop() : null;
+  const hasHeadings = useMemo(() => extractHeadings(content).length > 0, [content]);
+  const scrollRef = useRef<HTMLElement>(null);
 
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200">
@@ -156,8 +209,20 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-1">
-          {fileName && (
-            <span className="text-xs text-neutral-400 dark:text-neutral-500 mr-2">{fileName}</span>
+          <Breadcrumb filePath={selectedPath} rootFolder={rootFolder} />
+          <div className="w-2" />
+          {hasHeadings && (
+            <button
+              onClick={() => setTocOpen((v) => !v)}
+              className={`p-2 rounded-md transition-colors ${
+                tocOpen
+                  ? "bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-300"
+                  : "hover:bg-neutral-200 dark:hover:bg-neutral-800"
+              }`}
+              title="Toggle outline"
+            >
+              <List size={16} />
+            </button>
           )}
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <button
@@ -193,18 +258,34 @@ export default function App() {
                   entries={fileEntries}
                   onFileSelect={openFile}
                   onOpenFolder={handleOpenFolder}
+                  onOpenRecent={loadFolder}
                   onRefresh={refreshFolder}
                   canRefresh={!!rootFolder}
                   selectedPath={selectedPath}
+                  rootFolder={rootFolder}
+                  recentFolders={settings.recentFolders}
                 />
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <main className="flex-1 overflow-y-auto">
-          <MarkdownViewer content={content} filePath={selectedPath} />
+        <main ref={scrollRef} className="flex-1 overflow-y-auto relative">
+          <ReadingStatus content={content} scrollContainerRef={scrollRef} />
+          <FindBar
+            open={find.open}
+            query={find.query}
+            onQueryChange={find.setQuery}
+            onClose={find.close}
+            onNext={find.next}
+            onPrev={find.prev}
+            currentMatch={find.current}
+            totalMatches={find.total}
+          />
+          <MarkdownViewer ref={viewerRef} content={content} filePath={selectedPath} zoom={zoom} />
         </main>
+
+        <TocPanel content={content} viewerRef={viewerRef} open={tocOpen} />
       </div>
 
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
