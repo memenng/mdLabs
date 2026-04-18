@@ -31,6 +31,16 @@ Lightweight read-only Markdown reader for macOS, Windows, and Linux.
 - Windows `.ico`: use `npx png-to-ico src-tauri/icons/32x32.png > src-tauri/icons/icon.ico` — must redirect stdout to file, not pipe (npm warnings corrupt the binary)
 - Cannot cross-compile Tauri — must build on each target OS (use GitHub Actions CI)
 
+## Auto-updater
+
+- Plugin: `tauri-plugin-updater` + `tauri-plugin-process` (for relaunch)
+- Signing key: `~/.tauri/mdlabs.key` (private, keep safe) / `~/.tauri/mdlabs.key.pub` (public, in tauri.conf.json)
+- Endpoint (placeholder): `https://updates.mdlabs.example.com/{{target}}/{{arch}}/{{current_version}}` — swap with real VPS URL when ready
+- UI: Info icon shows orange dot badge when update available → click opens `UpdateDialog` with changelog + progress bar → auto-relaunch after install
+- Hook: `src/hooks/useUpdater.ts` (checks on startup)
+- CI env vars needed as GitHub Secrets: `TAURI_SIGNING_PRIVATE_KEY` (content of `~/.tauri/mdlabs.key`), optionally `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+- VPS serves `latest.json` manifest — tauri-action generates it automatically on release
+
 ## CI/CD
 
 - GitHub Actions workflow at `.github/workflows/build.yml`

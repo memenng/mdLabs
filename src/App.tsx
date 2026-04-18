@@ -7,7 +7,9 @@ import { Sidebar } from "./components/Sidebar";
 import { MarkdownViewer } from "./components/MarkdownViewer";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { AboutDialog } from "./components/AboutDialog";
+import { UpdateDialog } from "./components/UpdateDialog";
 import { useTheme } from "./hooks/useTheme";
+import { useUpdater } from "./hooks/useUpdater";
 import { PanelLeftClose, PanelLeft, Info, FileText } from "lucide-react";
 
 interface RustFileEntry {
@@ -35,8 +37,14 @@ function mapEntries(entries: RustFileEntry[]): FileEntry[] {
 
 export default function App() {
   const { theme, toggleTheme } = useTheme();
+  const { status: updateStatus, downloadAndInstall } = useUpdater();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [updateOpen, setUpdateOpen] = useState(false);
+  const hasUpdate =
+    updateStatus.kind === "available" ||
+    updateStatus.kind === "downloading" ||
+    updateStatus.kind === "installing";
   const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
   const [rootFolder, setRootFolder] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -153,11 +161,18 @@ export default function App() {
           )}
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <button
-            onClick={() => setAboutOpen(true)}
-            className="p-2 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
-            title="About mdLabs"
+            onClick={() => (hasUpdate ? setUpdateOpen(true) : setAboutOpen(true))}
+            className="relative p-2 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
+            title={hasUpdate ? "Update tersedia" : "About mdLabs"}
           >
             <Info size={16} />
+            {hasUpdate && (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="absolute top-1 right-1 w-2 h-2 bg-orange-500 rounded-full ring-2 ring-neutral-50 dark:ring-neutral-950"
+              />
+            )}
           </button>
         </div>
       </header>
@@ -193,6 +208,12 @@ export default function App() {
       </div>
 
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
+      <UpdateDialog
+        open={updateOpen}
+        onClose={() => setUpdateOpen(false)}
+        status={updateStatus}
+        onInstall={downloadAndInstall}
+      />
     </div>
   );
 }

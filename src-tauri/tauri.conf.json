@@ -30,6 +30,17 @@
       "icons/icon.png",
       "icons/icon.ico",
       "icons/mdlabs.icns"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEEzOTlDQUUwMjdFNDEyRjQKUldUMEV1UW40TXFabys0R2huZlBFN0RGdFgraGozNlBqOXc5ay9HczZxNzdsL2dNNkQwNmx0TDQK",
+      "endpoints": [
+        "https://updates.mdlabs.example.com/{{target}}/{{arch}}/{{current_version}}"
+      ]
+    }
   }
 }
