@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X } from "lucide-react";
+import { getVersion } from "@tauri-apps/api/app";
 
 interface AboutDialogProps {
   open: boolean;
@@ -7,6 +9,12 @@ interface AboutDialogProps {
 }
 
 export function AboutDialog({ open, onClose }: AboutDialogProps) {
+  const [version, setVersion] = useState<string>("");
+
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => setVersion(""));
+  }, []);
+
   return (
     <AnimatePresence>
       {open && (
@@ -34,7 +42,9 @@ export function AboutDialog({ open, onClose }: AboutDialogProps) {
             <div className="text-center mb-6">
               <div className="text-5xl mb-3">🧪</div>
               <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">mdLabs</h2>
-              <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Version 1.0.0</p>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
+                Version {version || "…"}
+              </p>
               <p className="text-sm text-neutral-400 dark:text-neutral-500">2026 mmnLabs</p>
             </div>
 
