@@ -44,6 +44,7 @@ Do NOT hardcode version strings in UI — read via `getVersion()` from `@tauri-a
 - Icon generation: `qlmanage -t -s 1024` for SVG→PNG, `sips` for resize, `iconutil -c icns` for .icns
 - Windows `.ico`: use `npx png-to-ico src-tauri/icons/32x32.png > src-tauri/icons/icon.ico` — must redirect stdout to file, not pipe (npm warnings corrupt the binary)
 - Cannot cross-compile Tauri — must build on each target OS (use GitHub Actions CI)
+- Overlays that must stay visible while `<main>` scrolls (FindBar, reading progress, word counter) MUST use `position: fixed` — `absolute` inside `<main>` scrolls with the content. Anchor to viewport with `top-12` (below the 48px header) / `bottom-2` etc.
 - `bundle.targets` does NOT accept `"updater"` as an entry (unknown variant error). Use `"targets": "all"` + `createUpdaterArtifacts: true` to produce updater bundles.
 - Updater ships **two artifacts per platform**: `*.tar.gz` (macOS) or `*.msi.zip` (Windows) plus a `.sig` sidecar — both must be uploaded to the update server.
 
