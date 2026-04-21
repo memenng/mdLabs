@@ -47,6 +47,7 @@ Do NOT hardcode version strings in UI — read via `getVersion()` from `@tauri-a
 - Overlays that must stay visible while `<main>` scrolls (FindBar, reading progress, word counter) MUST use `position: fixed` — `absolute` inside `<main>` scrolls with the content. Anchor to viewport with `top-12` (below the 48px header) / `bottom-2` etc.
 - `bundle.targets` does NOT accept `"updater"` as an entry (unknown variant error). Use `"targets": "all"` + `createUpdaterArtifacts: true` to produce updater bundles.
 - Updater ships **two artifacts per platform**: `*.tar.gz` (macOS) or `*.msi.zip` (Windows) plus a `.sig` sidecar — both must be uploaded to the update server.
+- CI matrix sometimes fails one platform with "Not Found - update-a-release-asset" (race on GH Release asset upload). Fix: `gh run rerun <id> --failed` — no code change.
 
 ## Auto-updater
 
@@ -86,7 +87,7 @@ Do NOT hardcode version strings in UI — read via `getVersion()` from `@tauri-a
 ## Search
 
 - **In-file (Cmd+F):** `src/hooks/useInFileSearch.ts` walks text nodes in the viewer and uses the CSS Custom Highlight API (`CSS.highlights`) for match styling — no DOM mutation. FindBar UI in `src/components/FindBar.tsx`.
-- **Global search:** Rust command `search_directory(path, query)` in `src-tauri/src/lib.rs` walks `.md` files under a folder (skips dotfiles), caps at 20 matches/file and 200 files. UI in `src/components/GlobalSearch.tsx` with a tabbed Sidebar.
+- **Global search:** Rust command `search_directory(path, query)` in `src-tauri/src/lib.rs` walks `.md` files under a folder (skips dotfiles), caps at 20 matches/file and 200 files. UI in `src/components/GlobalSearch.tsx` fans out across all open roots in parallel and de-duplicates results by path.
 
 ## TOC / Outline
 
@@ -113,3 +114,4 @@ Hotkeys via `src/hooks/useHotkeys.ts` (`Cmd`/`Ctrl` = "mod"):
 - Components in `src/components/`, hooks in `src/hooks/`, types in `src/types/`
 - All components support light/dark theme via `dark:` Tailwind classes
 - Orange accent color: `orange-400` (dark) / `orange-500` (light)
+- Destructive user actions use the custom `ConfirmDialog` (Yes/No modal) rather than native `ask()` dialogs — keeps theming consistent.
