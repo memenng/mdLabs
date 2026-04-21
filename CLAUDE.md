@@ -80,8 +80,8 @@ Do NOT hardcode version strings in UI — read via `getVersion()` from `@tauri-a
 ## Settings & State
 
 - `tauri-plugin-store` persists user settings to `settings.json` via `src/hooks/useAppSettings.ts`
-- Persisted keys: `sidebarOpen`, `lastFolder`, `recentFolders` (max 8), `zoom` (0.7–2)
-- Last opened folder auto-restores on app start
+- Persisted keys: `sidebarOpen`, `openFolders` (multi-root), `lastFolder` (legacy, used only for migration), `recentFolders` (max 8), `zoom` (0.7–2)
+- All previously-opened folders auto-restore on app start
 
 ## Search
 
@@ -102,9 +102,11 @@ Hotkeys via `src/hooks/useHotkeys.ts` (`Cmd`/`Ctrl` = "mod"):
 
 ## File Tree Behavior
 
-- Opened folder is wrapped as a single root parent node (collapsed by default) — not flattened into multiple roots
+- Multiple folders can be opened side-by-side — each appears as its own collapsed root node
+- "Open Folder" button adds a folder (doesn't replace). Dropping a folder also adds.
+- Root folder nodes show an × button on hover → triggers a confirmation modal (`ConfirmDialog`) before removing from navigation. Removing does not touch the folder on disk.
 - All folders default to collapsed; filter-matching forces display but doesn't auto-expand
-- Refresh: manual button in Sidebar + auto-refresh on `window` focus event (picks up new files added externally)
+- Refresh: manual button in Sidebar + auto-refresh on `window` focus event — refreshes all open roots
 
 ## Code Style
 

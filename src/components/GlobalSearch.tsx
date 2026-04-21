@@ -16,11 +16,11 @@ interface FileSearchResult {
 }
 
 interface GlobalSearchProps {
-  rootFolder: string | null;
+  rootFolders: string[];
   onPick: (path: string) => void;
 }
 
-export function GlobalSearch({ rootFolder, onPick }: GlobalSearchProps) {
+export function GlobalSearch({ rootFolders, onPick }: GlobalSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FileSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -28,7 +28,7 @@ export function GlobalSearch({ rootFolder, onPick }: GlobalSearchProps) {
 
   useEffect(() => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    if (!rootFolder || query.trim().length < 2) {
+    if (rootFolders.length === 0 || query.trim().length < 2) {
       setResults([]);
       setLoading(false);
       return;
@@ -36,14 +36,19 @@ export function GlobalSearch({ rootFolder, onPick }: GlobalSearchProps) {
     setLoading(true);
     debounceRef.current = window.setTimeout(async () => {
       try {
-        const r = await invoke<FileSearchResult[]>("search_directory", {
-          path: rootFolder,
-          query,
-        });
-        setResults(r);
-      } catch (e) {
-        console.error("search failed:", e);
-        setResults([]);
+        const chunks = await Promise.all(
+          rootFolders.map((path) =>
+            invoke<FileSearchResult[]>("search_directory", { path, query }).catch((e) => {
+              console.error("search failed for", path, e);
+              return [] as FileSearchResult[];
+            }),
+          ),
+        );
+        const merged = new Map<string, FileSearchResult>();
+        for (const chunk of chunks) {
+          for (const r of chunk) merged.set(r.path, r);
+        }
+        setResults(Array.from(merged.values()));
       } finally {
         setLoading(false);
       }
@@ -51,9 +56,10 @@ export function GlobalSearch({ rootFolder, onPick }: GlobalSearchProps) {
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
-  }, [query, rootFolder]);
+  }, [query, rootFolders]);
 
   const totalMatches = results.reduce((s, r) => s + r.matches.length, 0);
+  const hasFolder = rootFolders.length > 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -66,7 +72,9 @@ export function GlobalSearch({ rootFolder, onPick }: GlobalSearchProps) {
           )}
           <input
             type="text"
-            placeholder="Search in folder…"
+            placeholder={
+              rootFolders.length > 1 ? "Search in folders…" : "Search in folder…"
+            }
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="bg-transparent text-sm w-full outline-none text-neutral-700 dark:text-neutral-200 placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
@@ -75,17 +83,17 @@ export function GlobalSearch({ rootFolder, onPick }: GlobalSearchProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto text-sm">
-        {!rootFolder && (
+        {!hasFolder && (
           <div className="px-4 py-6 text-center text-neutral-400 text-xs">
             Open a folder to search.
           </div>
         )}
-        {rootFolder && query.trim().length < 2 && (
+        {hasFolder && query.trim().length < 2 && (
           <div className="px-4 py-6 text-center text-neutral-400 text-xs">
             Type at least 2 characters.
           </div>
         )}
-        {rootFolder && query.trim().length >= 2 && !loading && results.length === 0 && (
+        {hasFolder && query.trim().length >= 2 && !loading && results.length === 0 && (
           <div className="px-4 py-6 text-center text-neutral-400 text-xs">No matches.</div>
         )}
         {results.length > 0 && (

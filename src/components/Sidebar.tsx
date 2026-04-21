@@ -13,8 +13,9 @@ interface SidebarProps {
   onRefresh: () => void;
   canRefresh: boolean;
   selectedPath: string | null;
-  rootFolder: string | null;
+  rootFolders: string[];
   recentFolders: string[];
+  onRemoveRoot: (path: string) => void;
 }
 
 type Tab = "files" | "search";
@@ -27,8 +28,9 @@ export function Sidebar({
   onRefresh,
   canRefresh,
   selectedPath,
-  rootFolder,
+  rootFolders,
   recentFolders,
+  onRemoveRoot,
 }: SidebarProps) {
   const [filter, setFilter] = useState("");
   const [tab, setTab] = useState<Tab>("files");
@@ -81,13 +83,15 @@ export function Sidebar({
                 onFileSelect={onFileSelect}
                 selectedPath={selectedPath}
                 filter={filter}
+                rootPaths={rootFolders}
+                onRemoveRoot={onRemoveRoot}
               />
             )}
           </div>
         </>
       )}
 
-      {tab === "search" && <GlobalSearch rootFolder={rootFolder} onPick={onFileSelect} />}
+      {tab === "search" && <GlobalSearch rootFolders={rootFolders} onPick={onFileSelect} />}
 
       {/* Actions */}
       <div className="p-2 border-t border-neutral-200 dark:border-neutral-800 flex gap-2 relative">
@@ -98,7 +102,7 @@ export function Sidebar({
           className="flex items-center justify-center gap-2 flex-1 px-3 py-2 text-sm bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 rounded-md transition-colors"
         >
           <FolderOpen size={14} />
-          Open Folder
+          {rootFolders.length === 0 ? "Open Folder" : "Add Folder"}
         </motion.button>
         {recentFolders.length > 0 && (
           <motion.button

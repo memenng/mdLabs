@@ -8,6 +8,7 @@ import { MarkdownViewer } from "./components/MarkdownViewer";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { AboutDialog } from "./components/AboutDialog";
 import { UpdateDialog } from "./components/UpdateDialog";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { FindBar } from "./components/FindBar";
 import { TocPanel, extractHeadings } from "./components/TocPanel";
 import { Breadcrumb } from "./components/Breadcrumb";
@@ -42,11 +43,31 @@ function mapEntries(entries: RustFileEntry[]): FileEntry[] {
   }));
 }
 
+function folderBasename(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+}
+
+async function loadFolderEntry(folderPath: string): Promise<FileEntry> {
+  const entries = await invoke<RustFileEntry[]>("read_directory", { path: folderPath });
+  return {
+    name: folderBasename(folderPath),
+    path: folderPath,
+    isDir: true,
+    children: mapEntries(entries),
+  };
+}
+
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { status: updateStatus, downloadAndInstall } = useUpdater();
-  const { settings, loaded: settingsLoaded, update: updateSetting, pushRecentFolder } =
-    useAppSettings();
+  const {
+    settings,
+    loaded: settingsLoaded,
+    update: updateSetting,
+    pushRecentFolder,
+    addOpenFolder,
+    removeOpenFolder,
+  } = useAppSettings();
   const sidebarOpen = settings.sidebarOpen;
   const setSidebarOpen = useCallback(
     (v: boolean) => updateSetting("sidebarOpen", v),
@@ -60,16 +81,23 @@ export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const hasUpdate =
     updateStatus.kind === "available" ||
     updateStatus.kind === "downloading" ||
     updateStatus.kind === "installing";
   const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
-  const [rootFolder, setRootFolder] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [content, setContent] = useState("");
   const viewerRef = useRef<HTMLDivElement>(null);
   const find = useInFileSearch(viewerRef, selectedPath);
+
+  const rootFolders = settings.openFolders;
+  const activeRootFolder = useMemo(() => {
+    if (!selectedPath) return rootFolders[rootFolders.length - 1] ?? null;
+    const match = rootFolders.find((r) => selectedPath.startsWith(r));
+    return match ?? rootFolders[rootFolders.length - 1] ?? null;
+  }, [rootFolders, selectedPath]);
 
   const openFile = useCallback(async (path: string) => {
     try {
@@ -81,40 +109,44 @@ export default function App() {
     }
   }, []);
 
-  const loadFolder = useCallback(
+  const addFolder = useCallback(
     async (folderPath: string) => {
       try {
-        const entries = await invoke<RustFileEntry[]>("read_directory", { path: folderPath });
-        const children = mapEntries(entries);
-        const name = folderPath.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
-        setFileEntries([{ name, path: folderPath, isDir: true, children }]);
-        setRootFolder(folderPath);
+        const rootEntry = await loadFolderEntry(folderPath);
+        setFileEntries((prev) => {
+          const existing = prev.findIndex((e) => e.path === folderPath);
+          if (existing >= 0) {
+            const next = [...prev];
+            next[existing] = rootEntry;
+            return next;
+          }
+          return [...prev, rootEntry];
+        });
+        addOpenFolder(folderPath);
         pushRecentFolder(folderPath);
       } catch (e) {
         console.error("Failed to read directory:", e);
       }
     },
-    [pushRecentFolder],
+    [addOpenFolder, pushRecentFolder],
   );
 
-  const refreshFolder = useCallback(async () => {
-    if (!rootFolder) return;
+  const refreshFolders = useCallback(async () => {
+    if (rootFolders.length === 0) return;
     try {
-      const entries = await invoke<RustFileEntry[]>("read_directory", { path: rootFolder });
-      const children = mapEntries(entries);
-      const name = rootFolder.split(/[\\/]/).filter(Boolean).pop() ?? rootFolder;
-      setFileEntries([{ name, path: rootFolder, isDir: true, children }]);
+      const results = await Promise.all(rootFolders.map(loadFolderEntry));
+      setFileEntries(results);
     } catch (e) {
-      console.error("Failed to refresh directory:", e);
+      console.error("Failed to refresh directories:", e);
     }
-  }, [rootFolder]);
+  }, [rootFolders]);
 
   const handleOpenFolder = useCallback(async () => {
     const selected = await open({ directory: true, multiple: false });
     if (selected) {
-      await loadFolder(selected as string);
+      await addFolder(selected as string);
     }
-  }, [loadFolder]);
+  }, [addFolder]);
 
   const handleOpenFile = useCallback(async () => {
     const selected = await open({
@@ -126,22 +158,50 @@ export default function App() {
     }
   }, [openFile]);
 
-  // Restore last folder once settings are loaded
-  useEffect(() => {
-    if (settingsLoaded && settings.lastFolder && !rootFolder) {
-      loadFolder(settings.lastFolder);
+  const requestRemoveRoot = useCallback((path: string) => {
+    setRemoveTarget(path);
+  }, []);
+
+  const confirmRemoveRoot = useCallback(() => {
+    if (!removeTarget) return;
+    setFileEntries((prev) => prev.filter((e) => e.path !== removeTarget));
+    removeOpenFolder(removeTarget);
+    if (selectedPath && selectedPath.startsWith(removeTarget)) {
+      setSelectedPath(null);
+      setContent("");
     }
+    setRemoveTarget(null);
+  }, [removeTarget, removeOpenFolder, selectedPath]);
+
+  // Restore open folders once settings are loaded
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    if (fileEntries.length > 0) return;
+    if (settings.openFolders.length === 0) return;
+    (async () => {
+      const results = await Promise.all(
+        settings.openFolders.map(async (p) => {
+          try {
+            return await loadFolderEntry(p);
+          } catch (e) {
+            console.error("Failed to load folder", p, e);
+            return null;
+          }
+        }),
+      );
+      setFileEntries(results.filter((r): r is FileEntry => r !== null));
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsLoaded]);
 
-  // Auto-refresh folder when window regains focus
+  // Auto-refresh folders when window regains focus
   useEffect(() => {
     const onFocus = () => {
-      refreshFolder();
+      refreshFolders();
     };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [refreshFolder]);
+  }, [refreshFolders]);
 
   const hotkeyMap = useMemo(
     () => ({
@@ -173,7 +233,7 @@ export default function App() {
           if (path.endsWith(".md")) {
             await openFile(path);
           } else {
-            await loadFolder(path);
+            await addFolder(path);
           }
         }
       }
@@ -181,7 +241,7 @@ export default function App() {
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [openFile, loadFolder]);
+  }, [openFile, addFolder]);
 
   const hasHeadings = useMemo(() => extractHeadings(content).length > 0, [content]);
   const scrollRef = useRef<HTMLElement>(null);
@@ -209,7 +269,7 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-1">
-          <Breadcrumb filePath={selectedPath} rootFolder={rootFolder} />
+          <Breadcrumb filePath={selectedPath} rootFolder={activeRootFolder} />
           <div className="w-2" />
           {hasHeadings && (
             <button
@@ -258,12 +318,13 @@ export default function App() {
                   entries={fileEntries}
                   onFileSelect={openFile}
                   onOpenFolder={handleOpenFolder}
-                  onOpenRecent={loadFolder}
-                  onRefresh={refreshFolder}
-                  canRefresh={!!rootFolder}
+                  onOpenRecent={addFolder}
+                  onRefresh={refreshFolders}
+                  canRefresh={rootFolders.length > 0}
                   selectedPath={selectedPath}
-                  rootFolder={rootFolder}
+                  rootFolders={rootFolders}
                   recentFolders={settings.recentFolders}
+                  onRemoveRoot={requestRemoveRoot}
                 />
               </div>
             </motion.div>
@@ -294,6 +355,19 @@ export default function App() {
         onClose={() => setUpdateOpen(false)}
         status={updateStatus}
         onInstall={downloadAndInstall}
+      />
+      <ConfirmDialog
+        open={removeTarget !== null}
+        title="Remove folder?"
+        message={
+          removeTarget
+            ? `Hapus "${folderBasename(removeTarget)}" dari navigation? Folder asli di disk tidak terhapus.`
+            : ""
+        }
+        confirmLabel="Yes"
+        cancelLabel="No"
+        onConfirm={confirmRemoveRoot}
+        onCancel={() => setRemoveTarget(null)}
       />
     </div>
   );
