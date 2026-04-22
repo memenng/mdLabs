@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { load, Store } from "@tauri-apps/plugin-store";
 
+export type FontFamily = "sans" | "serif" | "mono";
+
 interface AppSettings {
   sidebarOpen: boolean;
   lastFolder: string | null;
   openFolders: string[];
   recentFolders: string[];
   zoom: number;
+  readingMode: boolean;
+  fontFamily: FontFamily;
+  recentFiles: string[];
+  pinnedFiles: string[];
+  lastFile: string | null;
+  scrollPositions: Record<string, number>;
+  searchHistory: string[];
+  searchRegex: boolean;
+  searchCaseSensitive: boolean;
 }
 
 const DEFAULTS: AppSettings = {
@@ -15,9 +26,22 @@ const DEFAULTS: AppSettings = {
   openFolders: [],
   recentFolders: [],
   zoom: 1,
+  readingMode: false,
+  fontFamily: "sans",
+  recentFiles: [],
+  pinnedFiles: [],
+  lastFile: null,
+  scrollPositions: {},
+  searchHistory: [],
+  searchRegex: false,
+  searchCaseSensitive: false,
 };
 
+const MAX_SEARCH_HISTORY = 10;
+
 const MAX_RECENT = 8;
+const MAX_RECENT_FILES = 20;
+const MAX_SCROLL_ENTRIES = 200;
 
 export function useAppSettings() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULTS);
@@ -83,6 +107,61 @@ export function useAppSettings() {
     });
   }, []);
 
+  const pushRecentFile = useCallback((path: string) => {
+    setSettings((prev) => {
+      const next = [path, ...prev.recentFiles.filter((p) => p !== path)].slice(0, MAX_RECENT_FILES);
+      storeRef.current?.set("recentFiles", next).catch(() => {});
+      storeRef.current?.set("lastFile", path).catch(() => {});
+      return { ...prev, recentFiles: next, lastFile: path };
+    });
+  }, []);
+
+  const togglePinnedFile = useCallback((path: string) => {
+    setSettings((prev) => {
+      const pinned = prev.pinnedFiles.includes(path)
+        ? prev.pinnedFiles.filter((p) => p !== path)
+        : [...prev.pinnedFiles, path];
+      storeRef.current?.set("pinnedFiles", pinned).catch(() => {});
+      return { ...prev, pinnedFiles: pinned };
+    });
+  }, []);
+
+  const saveScrollPosition = useCallback((path: string, scroll: number) => {
+    setSettings((prev) => {
+      const next = { ...prev.scrollPositions, [path]: scroll };
+      // LRU-ish eviction: if over cap, drop oldest keys (preserve recent files + pinned)
+      const keys = Object.keys(next);
+      if (keys.length > MAX_SCROLL_ENTRIES) {
+        const keep = new Set<string>([
+          ...prev.recentFiles,
+          ...prev.pinnedFiles,
+          path,
+        ]);
+        const trimmed: Record<string, number> = {};
+        for (const k of keys) {
+          if (keep.has(k)) trimmed[k] = next[k];
+        }
+        storeRef.current?.set("scrollPositions", trimmed).catch(() => {});
+        return { ...prev, scrollPositions: trimmed };
+      }
+      storeRef.current?.set("scrollPositions", next).catch(() => {});
+      return { ...prev, scrollPositions: next };
+    });
+  }, []);
+
+  const pushSearchHistory = useCallback((q: string) => {
+    const query = q.trim();
+    if (query.length < 2) return;
+    setSettings((prev) => {
+      const next = [query, ...prev.searchHistory.filter((x) => x !== query)].slice(
+        0,
+        MAX_SEARCH_HISTORY,
+      );
+      storeRef.current?.set("searchHistory", next).catch(() => {});
+      return { ...prev, searchHistory: next };
+    });
+  }, []);
+
   return {
     settings,
     loaded,
@@ -90,5 +169,9 @@ export function useAppSettings() {
     pushRecentFolder,
     addOpenFolder,
     removeOpenFolder,
+    pushRecentFile,
+    togglePinnedFile,
+    saveScrollPosition,
+    pushSearchHistory,
   };
 }

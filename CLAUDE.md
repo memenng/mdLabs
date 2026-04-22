@@ -43,6 +43,7 @@ Do NOT hardcode version strings in UI — read via `getVersion()` from `@tauri-a
 - Tauri v2 `readDir` has no `recursive` option — use custom Rust command instead
 - Icon generation: `qlmanage -t -s 1024` for SVG→PNG, `sips` for resize, `iconutil -c icns` for .icns
 - Windows `.ico`: use `npx png-to-ico src-tauri/icons/32x32.png > src-tauri/icons/icon.ico` — must redirect stdout to file, not pipe (npm warnings corrupt the binary)
+- Windows icon source is `mdlabs-icon-win.svg` (full-bleed, no 32px transparent padding). The macOS `mdlabs-icon.svg` keeps the padding for Apple's safe area; using it for `.ico` makes Windows show a visible transparent/white border around the rounded square. Regenerate `.ico` by rendering the `-win` SVG to multiple PNG sizes (16/24/32/48/64/128/256) and feeding them all to `png-to-ico` for crisp rendering at every Windows icon size.
 - Cannot cross-compile Tauri — must build on each target OS (use GitHub Actions CI)
 - Overlays that must stay visible while `<main>` scrolls (FindBar, reading progress, word counter) MUST use `position: fixed` — `absolute` inside `<main>` scrolls with the content. Anchor to viewport with `top-12` (below the 48px header) / `bottom-2` etc.
 - `bundle.targets` does NOT accept `"updater"` as an entry (unknown variant error). Use `"targets": "all"` + `createUpdaterArtifacts: true` to produce updater bundles.

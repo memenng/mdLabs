@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Search, FolderOpen, RefreshCw, Files, ChevronDown } from "lucide-react";
+import {
+  Search,
+  FolderOpen,
+  RefreshCw,
+  Files,
+  ChevronDown,
+  ChevronRight,
+  Star,
+  Clock,
+  X,
+} from "lucide-react";
 import { FileEntry } from "../types/files";
 import { FileTree } from "./FileTree";
 import { GlobalSearch } from "./GlobalSearch";
@@ -16,6 +26,21 @@ interface SidebarProps {
   rootFolders: string[];
   recentFolders: string[];
   onRemoveRoot: (path: string) => void;
+  onFileHover?: (path: string, rect: DOMRect) => void;
+  onFileUnhover?: () => void;
+  pinnedFiles: string[];
+  recentFiles: string[];
+  onTogglePin: (path: string) => void;
+  searchRegex: boolean;
+  searchCaseSensitive: boolean;
+  onToggleSearchRegex: () => void;
+  onToggleSearchCaseSensitive: () => void;
+  searchHistory: string[];
+  onCommitSearchQuery: (q: string) => void;
+}
+
+function fileBasename(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
 
 type Tab = "files" | "search";
@@ -31,10 +56,24 @@ export function Sidebar({
   rootFolders,
   recentFolders,
   onRemoveRoot,
+  onFileHover,
+  onFileUnhover,
+  pinnedFiles,
+  recentFiles,
+  onTogglePin,
+  searchRegex,
+  searchCaseSensitive,
+  onToggleSearchRegex,
+  onToggleSearchCaseSensitive,
+  searchHistory,
+  onCommitSearchQuery,
 }: SidebarProps) {
   const [filter, setFilter] = useState("");
   const [tab, setTab] = useState<Tab>("files");
   const [recentOpen, setRecentOpen] = useState(false);
+  const [pinnedExpanded, setPinnedExpanded] = useState(true);
+  const [recentExpanded, setRecentExpanded] = useState(false);
+  const pinnedSet = new Set(pinnedFiles);
 
   return (
     <motion.div
@@ -69,8 +108,46 @@ export function Sidebar({
             </div>
           </div>
 
-          {/* Tree */}
+          {/* Pinned + Recent + Tree */}
           <div className="flex-1 overflow-y-auto">
+            {pinnedFiles.length > 0 && (
+              <FlatFileSection
+                title="Pinned"
+                icon={<Star size={12} className="fill-orange-400 text-orange-400" />}
+                items={pinnedFiles}
+                expanded={pinnedExpanded}
+                onToggle={() => setPinnedExpanded((v) => !v)}
+                selectedPath={selectedPath}
+                onFileSelect={onFileSelect}
+                onFileHover={onFileHover}
+                onFileUnhover={onFileUnhover}
+                renderAction={(path) => (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTogglePin(path);
+                    }}
+                    title="Unpin"
+                    className="absolute right-1 p-1 rounded hover:bg-neutral-300 dark:hover:bg-neutral-700"
+                  >
+                    <X size={12} className="text-neutral-400" />
+                  </button>
+                )}
+              />
+            )}
+            {recentFiles.length > 0 && (
+              <FlatFileSection
+                title="Recent"
+                icon={<Clock size={12} className="text-neutral-400" />}
+                items={recentFiles.slice(0, 10)}
+                expanded={recentExpanded}
+                onToggle={() => setRecentExpanded((v) => !v)}
+                selectedPath={selectedPath}
+                onFileSelect={onFileSelect}
+                onFileHover={onFileHover}
+                onFileUnhover={onFileUnhover}
+              />
+            )}
             {entries.length === 0 ? (
               <div className="px-4 py-8 text-center text-neutral-400 dark:text-neutral-500 text-sm">
                 No folder open.
@@ -85,13 +162,28 @@ export function Sidebar({
                 filter={filter}
                 rootPaths={rootFolders}
                 onRemoveRoot={onRemoveRoot}
+                onFileHover={onFileHover}
+                onFileUnhover={onFileUnhover}
+                pinnedSet={pinnedSet}
+                onTogglePin={onTogglePin}
               />
             )}
           </div>
         </>
       )}
 
-      {tab === "search" && <GlobalSearch rootFolders={rootFolders} onPick={onFileSelect} />}
+      {tab === "search" && (
+        <GlobalSearch
+          rootFolders={rootFolders}
+          onPick={onFileSelect}
+          regex={searchRegex}
+          caseSensitive={searchCaseSensitive}
+          onToggleRegex={onToggleSearchRegex}
+          onToggleCaseSensitive={onToggleSearchCaseSensitive}
+          history={searchHistory}
+          onCommitQuery={onCommitSearchQuery}
+        />
+      )}
 
       {/* Actions */}
       <div className="p-2 border-t border-neutral-200 dark:border-neutral-800 flex gap-2 relative">
@@ -160,6 +252,87 @@ export function Sidebar({
         </AnimatePresence>
       </div>
     </motion.div>
+  );
+}
+
+function FlatFileSection({
+  title,
+  icon,
+  items,
+  expanded,
+  onToggle,
+  selectedPath,
+  onFileSelect,
+  onFileHover,
+  onFileUnhover,
+  renderAction,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  items: string[];
+  expanded: boolean;
+  onToggle: () => void;
+  selectedPath: string | null;
+  onFileSelect: (path: string) => void;
+  onFileHover?: (path: string, rect: DOMRect) => void;
+  onFileUnhover?: () => void;
+  renderAction?: (path: string) => React.ReactNode;
+}) {
+  return (
+    <div className="py-1">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-1 px-2 py-1 text-[10px] uppercase tracking-wider text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+      >
+        <motion.span animate={{ rotate: expanded ? 90 : 0 }} transition={{ duration: 0.15 }}>
+          <ChevronRight size={10} />
+        </motion.span>
+        {icon}
+        <span>{title}</span>
+        <span className="ml-auto normal-case text-neutral-400">{items.length}</span>
+      </button>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            style={{ overflow: "hidden" }}
+          >
+            {items.map((path) => {
+              const isSelected = path === selectedPath;
+              return (
+                <div
+                  key={path}
+                  className="group relative flex items-center"
+                  onMouseEnter={(e) => {
+                    if (!onFileHover) return;
+                    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                    onFileHover(path, rect);
+                  }}
+                  onMouseLeave={() => onFileUnhover?.()}
+                >
+                  <button
+                    onClick={() => onFileSelect(path)}
+                    title={path}
+                    className={`w-full flex items-center gap-1 px-2 py-1 text-sm rounded text-left truncate ${
+                      isSelected
+                        ? "bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-300"
+                        : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-white/10"
+                    }`}
+                    style={{ paddingLeft: "22px" }}
+                  >
+                    <span className="truncate">{fileBasename(path)}</span>
+                  </button>
+                  {renderAction?.(path)}
+                </div>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

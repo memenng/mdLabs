@@ -1,6 +1,6 @@
 {
   "name": "mdlabs",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "A lightweight Markdown reader for macOS",
   "type": "module",
   "scripts": {

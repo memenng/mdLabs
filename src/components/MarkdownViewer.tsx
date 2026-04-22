@@ -8,15 +8,38 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeSlug from "rehype-slug";
 import { MermaidBlock } from "./MermaidBlock";
 import { CodeBlock } from "./CodeBlock";
+import type { FontFamily } from "../hooks/useAppSettings";
 
 interface MarkdownViewerProps {
   content: string;
   filePath: string | null;
   zoom?: number;
+  readingMode?: boolean;
+  fontFamily?: FontFamily;
+  onImageClick?: (src: string, alt?: string) => void;
+  onInternalLinkEnter?: (href: string, rect: DOMRect) => void;
+  onInternalLinkLeave?: () => void;
+  onInternalLinkClick?: (href: string) => void;
 }
 
-export const MarkdownViewer = forwardRef<HTMLDivElement, MarkdownViewerProps>(function MarkdownViewer(
-  { content, filePath, zoom = 1 },
+const FONT_CLASS: Record<FontFamily, string> = {
+  sans: "font-sans",
+  serif: "font-serif",
+  mono: "font-mono",
+};
+
+const MarkdownViewer = forwardRef<HTMLDivElement, MarkdownViewerProps>(function MarkdownViewer(
+  {
+    content,
+    filePath,
+    zoom = 1,
+    readingMode = false,
+    fontFamily = "sans",
+    onImageClick,
+    onInternalLinkEnter,
+    onInternalLinkLeave,
+    onInternalLinkClick,
+  },
   ref,
 ) {
   if (!content && !filePath) {
@@ -57,7 +80,7 @@ export const MarkdownViewer = forwardRef<HTMLDivElement, MarkdownViewerProps>(fu
         exit={{ opacity: 0, y: -8 }}
         transition={{ duration: 0.2, type: "spring", stiffness: 300, damping: 30 }}
         style={{ fontSize: `${zoom}em` }}
-        className="max-w-4xl mx-auto px-8 py-6"
+        className={`${readingMode ? "max-w-2xl" : "max-w-4xl"} mx-auto px-8 py-6 ${FONT_CLASS[fontFamily]}`}
       >
         <article className="prose prose-neutral dark:prose-invert prose-orange max-w-none
           prose-headings:border-b prose-headings:border-neutral-200 dark:prose-headings:border-neutral-800 prose-headings:pb-2
@@ -98,7 +121,51 @@ export const MarkdownViewer = forwardRef<HTMLDivElement, MarkdownViewerProps>(fu
                   const dir = filePath.substring(0, filePath.lastIndexOf("/"));
                   resolvedSrc = `asset://localhost/${dir}/${src}`;
                 }
-                return <img src={resolvedSrc} alt={alt} {...props} />;
+                return (
+                  <img
+                    src={resolvedSrc}
+                    alt={alt}
+                    loading="lazy"
+                    onClick={onImageClick ? () => onImageClick(resolvedSrc, alt) : undefined}
+                    style={onImageClick ? { cursor: "zoom-in" } : undefined}
+                    {...props}
+                  />
+                );
+              },
+              a({ href, children, ...props }) {
+                const isInternal =
+                  !!href &&
+                  !href.startsWith("http") &&
+                  !href.startsWith("mailto:") &&
+                  !href.startsWith("#") &&
+                  /\.md(#.*)?$/i.test(href);
+                if (isInternal && filePath) {
+                  const dir = filePath.substring(0, filePath.lastIndexOf("/"));
+                  const [rel, hash] = href!.split("#");
+                  const abs = rel.startsWith("/") ? rel : `${dir}/${rel}`;
+                  return (
+                    <a
+                      href={href}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        onInternalLinkClick?.(hash ? `${abs}#${hash}` : abs);
+                      }}
+                      onMouseEnter={(e) => {
+                        const rect = (e.currentTarget as HTMLAnchorElement).getBoundingClientRect();
+                        onInternalLinkEnter?.(abs, rect);
+                      }}
+                      onMouseLeave={() => onInternalLinkLeave?.()}
+                      {...props}
+                    >
+                      {children}
+                    </a>
+                  );
+                }
+                return (
+                  <a href={href} target={href?.startsWith("http") ? "_blank" : undefined} rel="noreferrer" {...props}>
+                    {children}
+                  </a>
+                );
               },
             }}
           >
@@ -109,3 +176,6 @@ export const MarkdownViewer = forwardRef<HTMLDivElement, MarkdownViewerProps>(fu
     </AnimatePresence>
   );
 });
+
+export { MarkdownViewer };
+export default MarkdownViewer;

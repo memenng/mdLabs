@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Sidebar } from "./components/Sidebar";
-import { MarkdownViewer } from "./components/MarkdownViewer";
+const MarkdownViewer = lazy(() => import("./components/MarkdownViewer"));
 import { ThemeToggle } from "./components/ThemeToggle";
 import { AboutDialog } from "./components/AboutDialog";
 import { UpdateDialog } from "./components/UpdateDialog";
@@ -13,11 +13,16 @@ import { FindBar } from "./components/FindBar";
 import { TocPanel, extractHeadings } from "./components/TocPanel";
 import { Breadcrumb } from "./components/Breadcrumb";
 import { ReadingStatus } from "./components/ReadingStatus";
+import { ReadingControls } from "./components/ReadingControls";
+import { ImageLightbox } from "./components/ImageLightbox";
+import { LinkPreview } from "./components/LinkPreview";
+import type { FontFamily } from "./hooks/useAppSettings";
 import { useTheme } from "./hooks/useTheme";
 import { useUpdater } from "./hooks/useUpdater";
 import { useAppSettings } from "./hooks/useAppSettings";
 import { useHotkeys } from "./hooks/useHotkeys";
 import { useInFileSearch } from "./hooks/useInFileSearch";
+import { useFolderWatcher } from "./hooks/useFolderWatcher";
 import { PanelLeftClose, PanelLeft, Info, FileText, List } from "lucide-react";
 
 interface RustFileEntry {
@@ -67,6 +72,10 @@ export default function App() {
     pushRecentFolder,
     addOpenFolder,
     removeOpenFolder,
+    pushRecentFile,
+    togglePinnedFile,
+    saveScrollPosition,
+    pushSearchHistory,
   } = useAppSettings();
   const sidebarOpen = settings.sidebarOpen;
   const setSidebarOpen = useCallback(
@@ -78,10 +87,23 @@ export default function App() {
     (v: number) => updateSetting("zoom", Math.max(0.7, Math.min(2, v))),
     [updateSetting],
   );
+  const readingMode = settings.readingMode;
+  const setReadingMode = useCallback(
+    (v: boolean) => updateSetting("readingMode", v),
+    [updateSetting],
+  );
+  const fontFamily = settings.fontFamily;
+  const cycleFontFamily = useCallback(() => {
+    const order: FontFamily[] = ["sans", "serif", "mono"];
+    const next = order[(order.indexOf(fontFamily) + 1) % order.length];
+    updateSetting("fontFamily", next);
+  }, [fontFamily, updateSetting]);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ src: string; alt?: string } | null>(null);
+  const [linkHover, setLinkHover] = useState<{ href: string; rect: DOMRect } | null>(null);
   const hasUpdate =
     updateStatus.kind === "available" ||
     updateStatus.kind === "downloading" ||
@@ -99,15 +121,29 @@ export default function App() {
     return match ?? rootFolders[rootFolders.length - 1] ?? null;
   }, [rootFolders, selectedPath]);
 
-  const openFile = useCallback(async (path: string) => {
-    try {
-      const text = await invoke<string>("read_md_file", { path });
-      setContent(text);
-      setSelectedPath(path);
-    } catch (e) {
-      console.error("Failed to read file:", e);
-    }
-  }, []);
+  const scrollRef = useRef<HTMLElement>(null);
+  const pendingScrollRef = useRef<number | null>(null);
+
+  const openFile = useCallback(
+    async (path: string, opts?: { restoreScroll?: boolean }) => {
+      try {
+        // persist scroll of previously-open file before switching
+        if (selectedPath && scrollRef.current) {
+          saveScrollPosition(selectedPath, scrollRef.current.scrollTop);
+        }
+        const text = await invoke<string>("read_md_file", { path });
+        setContent(text);
+        setSelectedPath(path);
+        pushRecentFile(path);
+        pendingScrollRef.current = opts?.restoreScroll
+          ? settings.scrollPositions[path] ?? 0
+          : 0;
+      } catch (e) {
+        console.error("Failed to read file:", e);
+      }
+    },
+    [selectedPath, saveScrollPosition, pushRecentFile, settings.scrollPositions],
+  );
 
   const addFolder = useCallback(
     async (folderPath: string) => {
@@ -203,6 +239,9 @@ export default function App() {
     return () => window.removeEventListener("focus", onFocus);
   }, [refreshFolders]);
 
+  // Auto-refresh when watched folders change on disk
+  useFolderWatcher(rootFolders, refreshFolders);
+
   const hotkeyMap = useMemo(
     () => ({
       "mod+f": () => {
@@ -214,11 +253,13 @@ export default function App() {
       "mod++": () => setZoom(zoom + 0.1),
       "mod+-": () => setZoom(zoom - 0.1),
       "mod+0": () => setZoom(1),
+      "mod+shift+r": () => setReadingMode(!readingMode),
       escape: () => {
-        if (find.open) find.close();
+        if (lightbox) setLightbox(null);
+        else if (find.open) find.close();
       },
     }),
-    [selectedPath, find, handleOpenFolder, sidebarOpen, setSidebarOpen, zoom, setZoom],
+    [selectedPath, find, handleOpenFolder, sidebarOpen, setSidebarOpen, zoom, setZoom, readingMode, setReadingMode, lightbox],
   );
   useHotkeys(hotkeyMap, { allowInInput: ["escape", "mod+f"] });
 
@@ -244,7 +285,43 @@ export default function App() {
   }, [openFile, addFolder]);
 
   const hasHeadings = useMemo(() => extractHeadings(content).length > 0, [content]);
-  const scrollRef = useRef<HTMLElement>(null);
+
+  // Apply pending scroll once content is rendered (restore on open; reset to 0 otherwise)
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const target = pendingScrollRef.current ?? 0;
+    pendingScrollRef.current = null;
+    requestAnimationFrame(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = target;
+    });
+  }, [content]);
+
+  // Persist scroll position (debounced) as user scrolls
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !selectedPath) return;
+    let timer: number | null = null;
+    const onScroll = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        saveScrollPosition(selectedPath, el.scrollTop);
+      }, 300);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [selectedPath, saveScrollPosition]);
+
+  // Auto-restore last-opened file on startup
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    if (selectedPath) return;
+    if (!settings.lastFile) return;
+    openFile(settings.lastFile, { restoreScroll: true }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsLoaded]);
 
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200">
@@ -271,6 +348,12 @@ export default function App() {
         <div className="flex items-center gap-1">
           <Breadcrumb filePath={selectedPath} rootFolder={activeRootFolder} />
           <div className="w-2" />
+          <ReadingControls
+            readingMode={readingMode}
+            onToggleReadingMode={() => setReadingMode(!readingMode)}
+            fontFamily={fontFamily}
+            onCycleFontFamily={cycleFontFamily}
+          />
           {hasHeadings && (
             <button
               onClick={() => setTocOpen((v) => !v)}
@@ -305,7 +388,7 @@ export default function App() {
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         <AnimatePresence>
-          {sidebarOpen && (
+          {sidebarOpen && !readingMode && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 256, opacity: 1 }}
@@ -325,6 +408,19 @@ export default function App() {
                   rootFolders={rootFolders}
                   recentFolders={settings.recentFolders}
                   onRemoveRoot={requestRemoveRoot}
+                  onFileHover={(path, rect) => setLinkHover({ href: path, rect })}
+                  onFileUnhover={() => setLinkHover(null)}
+                  pinnedFiles={settings.pinnedFiles}
+                  recentFiles={settings.recentFiles}
+                  onTogglePin={togglePinnedFile}
+                  searchRegex={settings.searchRegex}
+                  searchCaseSensitive={settings.searchCaseSensitive}
+                  onToggleSearchRegex={() => updateSetting("searchRegex", !settings.searchRegex)}
+                  onToggleSearchCaseSensitive={() =>
+                    updateSetting("searchCaseSensitive", !settings.searchCaseSensitive)
+                  }
+                  searchHistory={settings.searchHistory}
+                  onCommitSearchQuery={pushSearchHistory}
                 />
               </div>
             </motion.div>
@@ -343,12 +439,47 @@ export default function App() {
             currentMatch={find.current}
             totalMatches={find.total}
           />
-          <MarkdownViewer ref={viewerRef} content={content} filePath={selectedPath} zoom={zoom} />
+<Suspense
+            fallback={
+              <div className="flex items-center justify-center h-full text-xs text-neutral-400">
+                Loading viewer…
+              </div>
+            }
+          >
+          <MarkdownViewer
+            ref={viewerRef}
+            content={content}
+            filePath={selectedPath}
+            zoom={zoom}
+            readingMode={readingMode}
+            fontFamily={fontFamily}
+            onImageClick={(src, alt) => setLightbox({ src, alt })}
+            onInternalLinkEnter={(href, rect) => setLinkHover({ href, rect })}
+            onInternalLinkLeave={() => setLinkHover(null)}
+            onInternalLinkClick={(href) => {
+              setLinkHover(null);
+              const [abs, hash] = href.split("#");
+              openFile(abs).then(() => {
+                if (hash) {
+                  requestAnimationFrame(() => {
+                    document.getElementById(hash)?.scrollIntoView({ behavior: "smooth" });
+                  });
+                }
+              });
+            }}
+          />
+          </Suspense>
         </main>
 
-        <TocPanel content={content} viewerRef={viewerRef} open={tocOpen} />
+        <TocPanel content={content} viewerRef={viewerRef} open={readingMode ? false : tocOpen} />
       </div>
 
+      <ImageLightbox
+        src={lightbox?.src ?? null}
+        alt={lightbox?.alt}
+        onClose={() => setLightbox(null)}
+      />
+      <LinkPreview href={linkHover?.href ?? null} rect={linkHover?.rect ?? null} />
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <UpdateDialog
         open={updateOpen}

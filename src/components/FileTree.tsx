@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronRight, File, Folder, X } from "lucide-react";
+import { ChevronRight, File, Folder, Star, X } from "lucide-react";
 import { FileEntry } from "../types/files";
 
 interface FileTreeProps {
@@ -10,6 +10,10 @@ interface FileTreeProps {
   filter: string;
   rootPaths?: string[];
   onRemoveRoot?: (path: string) => void;
+  onFileHover?: (path: string, rect: DOMRect) => void;
+  onFileUnhover?: () => void;
+  pinnedSet?: Set<string>;
+  onTogglePin?: (path: string) => void;
 }
 
 function matchesFilter(entry: FileEntry, filter: string): boolean {
@@ -30,6 +34,10 @@ function TreeNode({
   filter,
   isRoot,
   onRemoveRoot,
+  onFileHover,
+  onFileUnhover,
+  pinnedSet,
+  onTogglePin,
 }: {
   entry: FileEntry;
   depth: number;
@@ -38,9 +46,14 @@ function TreeNode({
   filter: string;
   isRoot?: boolean;
   onRemoveRoot?: (path: string) => void;
+  onFileHover?: (path: string, rect: DOMRect) => void;
+  onFileUnhover?: () => void;
+  pinnedSet?: Set<string>;
+  onTogglePin?: (path: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [hover, setHover] = useState(false);
+  const hoverTimer = useRef<number | null>(null);
 
   if (!matchesFilter(entry, filter)) return null;
 
@@ -99,6 +112,10 @@ function TreeNode({
                   onFileSelect={onFileSelect}
                   selectedPath={selectedPath}
                   filter={filter}
+                  onFileHover={onFileHover}
+                  onFileUnhover={onFileUnhover}
+                  pinnedSet={pinnedSet}
+                  onTogglePin={onTogglePin}
                 />
               ))}
             </motion.div>
@@ -111,21 +128,58 @@ function TreeNode({
   if (!entry.name.endsWith(".md")) return null;
 
   const isSelected = entry.path === selectedPath;
+  const isPinned = pinnedSet?.has(entry.path) ?? false;
 
   return (
-    <motion.button
-      whileTap={{ scale: 0.98 }}
-      className={`flex items-center gap-1 w-full px-2 py-1 text-sm rounded text-left transition-colors ${
-        isSelected
-          ? "bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-300"
-          : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-white/10"
-      }`}
-      style={{ paddingLeft: `${depth * 16 + 8}px` }}
-      onClick={() => onFileSelect(entry.path)}
+    <div
+      className="group relative flex items-center"
+      onMouseEnter={(e) => {
+        setHover(true);
+        if (!onFileHover) return;
+        const target = e.currentTarget as HTMLDivElement;
+        const rect = target.getBoundingClientRect();
+        if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+        hoverTimer.current = window.setTimeout(() => onFileHover(entry.path, rect), 250);
+      }}
+      onMouseLeave={() => {
+        setHover(false);
+        if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+        onFileUnhover?.();
+      }}
     >
-      <File size={14} className="shrink-0 text-neutral-400" />
-      <span className="truncate">{entry.name}</span>
-    </motion.button>
+      <motion.button
+        whileTap={{ scale: 0.98 }}
+        className={`flex items-center gap-1 w-full px-2 py-1 text-sm rounded text-left transition-colors ${
+          isSelected
+            ? "bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-300"
+            : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-white/10"
+        }`}
+        style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        onClick={() => onFileSelect(entry.path)}
+      >
+        <File size={14} className="shrink-0 text-neutral-400" />
+        <span className="truncate">{entry.name}</span>
+      </motion.button>
+      {onTogglePin && (hover || isPinned) && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onTogglePin(entry.path);
+          }}
+          title={isPinned ? "Unpin" : "Pin to favorites"}
+          className="absolute right-1 p-1 rounded hover:bg-neutral-300 dark:hover:bg-neutral-700"
+        >
+          <Star
+            size={12}
+            className={
+              isPinned
+                ? "fill-orange-400 text-orange-400"
+                : "text-neutral-400 dark:text-neutral-500"
+            }
+          />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -136,6 +190,10 @@ export function FileTree({
   filter,
   rootPaths,
   onRemoveRoot,
+  onFileHover,
+  onFileUnhover,
+  pinnedSet,
+  onTogglePin,
 }: FileTreeProps) {
   const rootSet = rootPaths ? new Set(rootPaths) : null;
   return (
@@ -150,6 +208,10 @@ export function FileTree({
           filter={filter}
           isRoot={rootSet ? rootSet.has(entry.path) : false}
           onRemoveRoot={onRemoveRoot}
+          onFileHover={onFileHover}
+          onFileUnhover={onFileUnhover}
+          pinnedSet={pinnedSet}
+          onTogglePin={onTogglePin}
         />
       ))}
     </div>
