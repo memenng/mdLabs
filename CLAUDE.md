@@ -15,6 +15,8 @@ Lightweight read-only Markdown reader for macOS, Windows, and Linux.
 - Filesystem access uses **custom Rust commands** (`read_directory`, `read_md_file`) via `invoke()` — NOT `tauri-plugin-fs` (scope system too restrictive for reading arbitrary paths)
 - Theme switching uses TailwindCSS `dark:` variant with class-based toggle on `<html>`
 - highlight.js light mode uses explicit `:root:not(.dark)` CSS overrides (CSS layers don't work reliably)
+- Tauri v2 backend state: register with `.manage(Mutex::new(T))` in the builder, consume in commands as `State<'_, Mutex<T>>`. Emit events via `use tauri::Emitter; app.emit("event-name", payload)`. Path helpers (`app.path().app_log_dir()`) need `use tauri::Manager`.
+- Bundle splitting: `MarkdownViewer` pulls in react-markdown + katex + highlight.js + mermaid. It's wrapped in `React.lazy` in `App.tsx`, and `MermaidBlock` dynamic-imports mermaid inside `useEffect` (cached promise). Don't static-import these back — keeps main chunk ~258KB (gzip 77KB) vs 760KB/237KB if inlined.
 
 ## Build Commands
 
@@ -26,6 +28,13 @@ Lightweight read-only Markdown reader for macOS, Windows, and Linux.
   TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/mdlabs.key) TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" npx tauri build
   ```
   Produces `mdLabs.app.tar.gz` + `.tar.gz.sig` for updater distribution.
+- **Local Mac install over existing app (skip CI):**
+  ```
+  pkill -f "mdLabs.app/Contents/MacOS/mdlabs"; rm -rf /Applications/mdLabs.app; \
+  cp -R src-tauri/target/release/bundle/macos/mdLabs.app /Applications/; \
+  xattr -dr com.apple.quarantine /Applications/mdLabs.app
+  ```
+  Quarantine strip needed because local builds aren't notarized.
 
 ## Versioning
 
@@ -49,6 +58,9 @@ Do NOT hardcode version strings in UI — read via `getVersion()` from `@tauri-a
 - `bundle.targets` does NOT accept `"updater"` as an entry (unknown variant error). Use `"targets": "all"` + `createUpdaterArtifacts: true` to produce updater bundles.
 - Updater ships **two artifacts per platform**: `*.tar.gz` (macOS) or `*.msi.zip` (Windows) plus a `.sig` sidecar — both must be uploaded to the update server.
 - CI matrix sometimes fails one platform with "Not Found - update-a-release-asset" (race on GH Release asset upload). Fix: `gh run rerun <id> --failed` — no code change.
+- Tauri command params: Rust `snake_case` is auto-converted to JS `camelCase` on `invoke` (e.g. `case_sensitive: Option<bool>` → call with `{ caseSensitive: true }`). Adding a new param as `Option<T>` keeps old callers working.
+- `React.lazy(() => import("./Foo"))` requires the module to have a default export. `forwardRef` components work under `React.lazy` in React 19 (ref is forwarded through `<Suspense>`).
+- Force `tauri dev` to rebuild Rust after editing `Cargo.toml`: `touch src-tauri/src/lib.rs`. The watcher is on `src/`, not `Cargo.toml`.
 
 ## Auto-updater
 
@@ -81,6 +93,7 @@ Do NOT hardcode version strings in UI — read via `getVersion()` from `@tauri-a
 
 ## Settings & State
 
+- Adding a new field: add it to both the `AppSettings` interface and `DEFAULTS` — the load loop merges stored values over defaults, so pure additions need no migration. For large `Record<path, …>` fields (e.g. `scrollPositions`), enforce an LRU cap and prefer keeping keys referenced by `recentFiles`/`pinnedFiles` during eviction.
 - `tauri-plugin-store` persists user settings to `settings.json` via `src/hooks/useAppSettings.ts`
 - Persisted keys: `sidebarOpen`, `openFolders` (multi-root), `lastFolder` (legacy, used only for migration), `recentFolders` (max 8), `zoom` (0.7–2)
 - All previously-opened folders auto-restore on app start
