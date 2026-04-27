@@ -73,6 +73,7 @@ export function Sidebar({
   const [recentOpen, setRecentOpen] = useState(false);
   const [pinnedExpanded, setPinnedExpanded] = useState(true);
   const [recentExpanded, setRecentExpanded] = useState(false);
+  const [refreshSpin, setRefreshSpin] = useState(0);
   const pinnedSet = new Set(pinnedFiles);
 
   return (
@@ -210,12 +211,21 @@ export function Sidebar({
         {canRefresh && (
           <motion.button
             whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98, rotate: 180 }}
-            onClick={onRefresh}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => {
+              setRefreshSpin((n) => n + 1);
+              onRefresh();
+            }}
             title="Refresh folder"
             className="flex items-center justify-center px-3 py-2 text-sm bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 rounded-md transition-colors text-neutral-600 dark:text-neutral-300"
           >
-            <RefreshCw size={14} />
+            <motion.span
+              animate={{ rotate: refreshSpin * 360 }}
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+              className="inline-flex"
+            >
+              <RefreshCw size={14} />
+            </motion.span>
           </motion.button>
         )}
 

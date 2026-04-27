@@ -1,7 +1,7 @@
 {
   "name": "mdlabs",
-  "version": "1.4.0",
-  "description": "A lightweight Markdown reader for macOS",
+  "version": "1.4.1",
+  "description": "A lightweight Markdown reader for macOS, Windows, and Linux",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,8 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri"
   },
-  "author": "mmnLabs",
-  "license": "MIT",
+  "author": "SoapTrader",
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "^2.7.0",

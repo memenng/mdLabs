@@ -240,7 +240,16 @@ export default function App() {
   }, [refreshFolders]);
 
   // Auto-refresh when watched folders change on disk
-  useFolderWatcher(rootFolders, refreshFolders);
+  const handleFolderChange = useCallback(
+    (changedPaths: string[]) => {
+      refreshFolders();
+      if (selectedPath && changedPaths.some((p) => p === selectedPath)) {
+        openFile(selectedPath, { restoreScroll: true }).catch(() => {});
+      }
+    },
+    [refreshFolders, selectedPath, openFile],
+  );
+  useFolderWatcher(rootFolders, handleFolderChange);
 
   const hotkeyMap = useMemo(
     () => ({

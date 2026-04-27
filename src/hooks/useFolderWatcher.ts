@@ -2,14 +2,17 @@ import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-export function useFolderWatcher(paths: string[], onChanged: () => void) {
+export function useFolderWatcher(
+  paths: string[],
+  onChanged: (changedPaths: string[]) => void,
+) {
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     let cancelled = false;
 
     (async () => {
-      const off = await listen<string[]>("folder-changed", () => {
-        if (!cancelled) onChanged();
+      const off = await listen<string[]>("folder-changed", (e) => {
+        if (!cancelled) onChanged(e.payload ?? []);
       });
       unlisten = off;
 

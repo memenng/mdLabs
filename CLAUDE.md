@@ -61,27 +61,27 @@ Do NOT hardcode version strings in UI — read via `getVersion()` from `@tauri-a
 - Tauri command params: Rust `snake_case` is auto-converted to JS `camelCase` on `invoke` (e.g. `case_sensitive: Option<bool>` → call with `{ caseSensitive: true }`). Adding a new param as `Option<T>` keeps old callers working.
 - `React.lazy(() => import("./Foo"))` requires the module to have a default export. `forwardRef` components work under `React.lazy` in React 19 (ref is forwarded through `<Suspense>`).
 - Force `tauri dev` to rebuild Rust after editing `Cargo.toml`: `touch src-tauri/src/lib.rs`. The watcher is on `src/`, not `Cargo.toml`.
+- `motion` gesture props (`whileTap`, `whileHover`) only fire on the element they're attached to — a `motion.span` child of a `motion.button` does NOT receive the parent's tap. To animate a child (e.g. spin only the icon, not the whole button box), use a state counter incremented on click + `animate={{ rotate: counter * 360 }}` on the child, not `whileTap` on the child.
 
 ## Auto-updater
 
 - Plugin: `tauri-plugin-updater` + `tauri-plugin-process` (for relaunch)
 - Signing key: `~/.tauri/mdlabs.key` (private, keep safe) / `~/.tauri/mdlabs.key.pub` (public, in tauri.conf.json)
-- Endpoint (placeholder): `https://updates.mdlabs.example.com/{{target}}/{{arch}}/{{current_version}}` — swap with real VPS URL when ready
+- Endpoint: `https://github.com/memenng/mdLabs/releases/latest/download/latest.json` — works because repo is public; `tauri-action` uploads `latest.json` to each release automatically. No VPS required. If repo ever goes private, this URL will start 404'ing for unauthenticated clients — switch to a VPS-hosted manifest at that point.
 - UI: Info icon shows orange dot badge when update available → click opens `UpdateDialog` with changelog + progress bar → auto-relaunch after install
 - Hook: `src/hooks/useUpdater.ts` (checks on startup)
 - Permissions required in `capabilities/default.json`: `updater:default`, `process:default`, `process:allow-restart`
-- If endpoint is unreachable (e.g. placeholder URL), updater fails silently — `status.kind === "error"`, no badge shown, app keeps working
+- If endpoint is unreachable, updater fails silently — `status.kind === "error"`, no badge shown, app keeps working
 - CI env vars needed as GitHub Secrets: `TAURI_SIGNING_PRIVATE_KEY` (content of `~/.tauri/mdlabs.key`), optionally `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
-- VPS serves `latest.json` manifest — tauri-action generates it automatically on release
 
 ## CI/CD
 
 - GitHub Actions workflow at `.github/workflows/build.yml`
 - Triggered by version tags (`git tag v1.x.x && git push origin v1.x.x`) or manual dispatch
-- Builds 4 targets: macOS arm64, macOS x64, Windows x64, Linux x64
-- Artifacts published to GitHub Releases automatically
+- **CI builds macOS arm64 + Windows x64.** Repo is public, so Actions minutes are unlimited and free. Linux is intentionally skipped — nobody uses it. macOS x64 (Intel) is dropped because it's end-of-life; only `aarch64-apple-darwin` is built.
+- Artifacts published to GitHub Releases automatically (`*.app.tar.gz` + `.sig` for macOS, `*.msi.zip` + `.sig` for Windows). The same release also contains `latest.json` which the in-app updater fetches.
 - Workflow requires `permissions: contents: write` for creating releases
-- Repo: `github.com/memenng/mdLabs` (private)
+- Repo: `github.com/memenng/mdLabs` (public, AGPL-3.0)
 
 ## Icons
 
@@ -114,6 +114,13 @@ Do NOT hardcode version strings in UI — read via `getVersion()` from `@tauri-a
 Hotkeys via `src/hooks/useHotkeys.ts` (`Cmd`/`Ctrl` = "mod"):
 - `mod+f` find-in-file · `mod+o` open folder · `mod+b` toggle sidebar
 - `mod+=` / `mod+-` zoom · `mod+0` reset zoom · `esc` close find bar
+
+## File Watching
+
+- `watch_folder` Rust command (in `src-tauri/src/lib.rs`) uses `notify_debouncer_mini` with 500ms debounce, emits `folder-changed` event with `Vec<String>` payload of changed paths.
+- `src/hooks/useFolderWatcher.ts` passes the payload array to its `onChanged` callback — consumer decides what to do per path.
+- In `App.tsx`, the handler both refreshes the folder tree AND re-reads the currently-open file if its path is in the payload (via `openFile(selectedPath, { restoreScroll: true })`). Scroll position is preserved because `openFile` saves current scroll before re-reading, and `restoreScroll` pulls it back.
+- Do NOT add a separate file-content watcher — the folder watcher is recursive and already covers file-level events.
 
 ## File Tree Behavior
 
