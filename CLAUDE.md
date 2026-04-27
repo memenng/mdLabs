@@ -81,6 +81,7 @@ Do NOT hardcode version strings in UI — read via `getVersion()` from `@tauri-a
 - **CI builds macOS arm64 + Windows x64.** Repo is public, so Actions minutes are unlimited and free. Linux is intentionally skipped — nobody uses it. macOS x64 (Intel) is dropped because it's end-of-life; only `aarch64-apple-darwin` is built.
 - Artifacts published to GitHub Releases automatically (`*.app.tar.gz` + `.sig` for macOS, `*.msi.zip` + `.sig` for Windows). The same release also contains `latest.json` which the in-app updater fetches.
 - Workflow requires `permissions: contents: write` for creating releases
+- Action versions: `actions/checkout@v6`, `actions/setup-node@v6` (both run on Node.js 24). Build runtime is also Node.js 24. GitHub announced Node 20 deprecation in late 2025 — bump action versions when GitHub flags the next runtime change, don't pin below current.
 - Repo: `github.com/memenng/mdLabs` (public, AGPL-3.0)
 
 ## Icons
